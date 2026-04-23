@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resolve Organizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="panel">
+      <div class="panel__glow panel__glow--one"></div>
+      <div class="panel__glow panel__glow--two"></div>
+
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">DaVinci Resolve</p>
+          <h1>Resolve Organizer</h1>
+          <p class="signature">@christianfrank</p>
+        </div>
+      </header>
+
+      <div class="layout">
+        <div class="editor">
+          <p class="lead">Create a clean, fast project structure without wasting screen space.</p>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Project name</span>
+              <input id="projectName" type="text" placeholder="Example: Client_Campaign" autocomplete="off">
+            </label>
+
+            <div class="field">
+              <span>Destination folder</span>
+              <div class="folder-row">
+                <input id="destPath" type="text" value="No folder selected" readonly>
+                <button id="selectFolderBtn" class="ghost-btn" type="button">Select</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="createBtn" class="primary-btn" type="button">Create project</button>
+            <div class="action-row">
+              <button id="resetBtn" class="secondary-btn" type="button">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="preview">
+          <div class="preview__header">
+            <div>
+              <span>Structure</span>
+              <small>13 folders total</small>
+            </div>
+            <div class="preview__pulse"></div>
+          </div>
+
+          <div class="tree-tools" aria-label="Tree editing tools">
+            <button id="addSiblingBtn" class="tool-btn" type="button">Add bin</button>
+            <button id="addChildBtn" class="tool-btn" type="button">Add sub bin</button>
+            <button id="renameBtn" class="tool-btn" type="button">Rename</button>
+            <button id="removeBtn" class="tool-btn tool-btn--danger" type="button">Remove</button>
+          </div>
+
+          <div class="tree" id="tree" aria-live="polite">
+            <div class="tree__root">📁 Project_Name/</div>
+            <div class="tree__item">├─ 00_Footage/</div>
+            <div class="tree__item">├─ 01_Proxy/</div>
+            <div class="tree__item">├─ 02_Audio/</div>
+            <div class="tree__subitem">│  ├─ VO/</div>
+            <div class="tree__subitem">│  ├─ SFX/</div>
+            <div class="tree__subitem">│  └─ Music/</div>
+            <div class="tree__item">├─ 03_Assets/</div>
+            <div class="tree__subitem">│  └─ Graficos/</div>
+            <div class="tree__item">├─ 04_Imagens/</div>
+            <div class="tree__item">├─ 05_Exports/</div>
+            <div class="tree__item">├─ 05_Documentos/</div>
+            <div class="tree__item">├─ 06_Cache_Proxies/</div>
+            <div class="tree__item">└─ 07_Renders/</div>
+          </div>
+
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
