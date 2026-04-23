@@ -1,4 +1,5 @@
 DavinciResolve Organizer Description (PT / EN / DE)
+
 link: https://resolveorganizer.netlify.app/
 
 sugestions to :  @ccnfrank
