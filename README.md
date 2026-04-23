@@ -5,82 +5,24 @@ link: https://resolveorganizer.netlify.app/
 sugestions to :  @ccnfrank
                  ccnfrank@icloud.com
 
-Webapp para automatizar a criação da estrutura de pastas para projetos no DaVinci Resolve. 
-Elimina a tarefa repetitiva de organizar diretórios manualmente, 
-garantindo que editores e coloristas mantenham um workflow consistente desde o primeiro dia.
 
-. Interface intuitiva que funciona em qualquer navegador moderno.
-- Funcoes de remover , adicionar e renomear bins
+O Resolve Organizer é uma ferramenta de suporte ao fluxo de trabalho (workflow) para editores e coloristas que utilizam o DaVinci Resolve. O foco principal é eliminar o trabalho manual repetitivo de organizar pastas de mídia, automatizando a estrutura de Bins para novos projetos.
 
-Por padrao, a estrutura é: (mude a vontade adicionando, removendo ou selecionando bins e renomeando)
+Funcionalidades Principais
+Estruturação de Projetos: Criação rápida de hierarquias de pastas (Bins) padronizadas (ex: Footage, Audio, Graphics, Proxies, Timelines).
 
-00_Footage
-01_Proxy
-02_Audio
-   - VO
-   - SFX
-   - Music
-03_Assets
-   - Graphics
-04_Imagens
-05_Exports
-05_Documents
-06_Cache_Proxies
-07_Renders
+Padronização de Workflow: Garante que todos os projetos sigam a mesma lógica organizacional, facilitando a colaboração e a entrega de arquivos.
 
+Interface Direta: Webapp leve focado em gerar a estrutura necessária para importação ou integração com o software da Blackmagic Design.
 
-🇺🇸 English (casual)
+Ganho de Produtividade: Reduz o tempo de "set-up" inicial do projeto, permitindo que o editor comece a trabalhar na montagem imediatamente.
 
-Web app to automate creating folder structures for projects in DaVinci Resolve.
-It removes the repetitive task of organizing directories manually,
-making sure editors and colorists keep a consistent workflow from day one.
+Por que usar?
+"Para editores que não querem perder 15 minutos configurando o projeto toda vez que recebem um novo HD. O Resolve Organizer organiza a casa antes mesmo da primeira clipagem."
 
-Simple, intuitive interface that works in any modern browser
-Options to remove, add, and rename bins
+Público-Alvo
+Editores de Vídeo (Freelancers e Agências): Que lidam com grandes volumes de arquivos diariamente.
 
-By default, the structure is: (you can change it however you want — add, remove, or rename bins)
+Assistentes de Ilha: Que precisam organizar o material bruto antes de passar para o editor principal.
 
-00_Footage
-01_Proxy
-02_Audio
-  -VO
-  -SFX
-  -Music
-03_Assets
-Graphics
-04_Images
-05_Exports
-05_Documents
-06_Cache_Proxies
-07_Renders
-
-
-🇩🇪 Deutsch (umgangssprachlich)
-
-Web-App, um die Ordnerstruktur für Projekte in DaVinci Resolve automatisch zu erstellen.
-Sie nimmt dir die nervige, wiederholte Arbeit ab, Verzeichnisse manuell zu organisieren,
-und sorgt dafür, dass Editorinnen und Coloristinnen von Anfang an einen konsistenten Workflow haben.
-
-Einfache, intuitive Oberfläche, die in jedem modernen Browser läuft
-Funktionen zum Entfernen, Hinzufügen und Umbenennen von Bins
-
-Standardmäßig sieht die Struktur so aus: (du kannst sie beliebig anpassen — Bins hinzufügen, entfernen oder umbenennen)
-
-00_Footage
-01_Proxy
-02_Audio
-  -VO
-  -SFX
-  -Music
-03_Assets
-Graphics
-04_Bilder
-05_Exports
-05_Documents
-06_Cache_Proxies
-07_Renders
-
-
-ENJOY !
-
-
+Coloristas e Artistas de VFX: Que dependem de uma estrutura de Bins rigorosa para não perder referências e renderizações.
