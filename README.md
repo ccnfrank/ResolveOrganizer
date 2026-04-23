@@ -1,5 +1,7 @@
 DavinciResolve Organizer Description (PT / EN / DE)
-sugestions to : @christianfrank
+sugestions to : 
+
+@christianfrank
 
 Webapp para automatizar a criação da estrutura de pastas para projetos no DaVinci Resolve. 
 Elimina a tarefa repetitiva de organizar diretórios manualmente, 
