@@ -4,7 +4,13 @@ import { CircleHelp } from 'lucide-react'
 import { useBinTree } from './hooks/useBinTree'
 import { useLanguage } from './i18n/useLanguage'
 import { connectedNodes, countFolders, getNode, type BinNode, type Path } from './lib/binTree'
-import { createProjectTree, folderExists, pickDirectory, supportsDirectoryPicker } from './lib/fileSystem'
+import {
+  createProjectTree,
+  folderExists,
+  pickDirectory,
+  supportsDirectoryPicker,
+  type FolderTarget,
+} from './lib/fileSystem'
 import { pathKey } from './lib/layout'
 import { prefersReducedMotion, sleep } from './lib/motion'
 import {
@@ -74,7 +80,7 @@ export default function App() {
   const tree = useBinTree()
 
   const [projectName, setProjectName] = useState('')
-  const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null)
+  const [dirHandle, setDirHandle] = useState<FolderTarget | null>(null)
   const [existingName, setExistingName] = useState<string | null>(null)
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>(() => loadCustomPresets())
   const [render, setRender] = useState<RenderState | null>(null)
@@ -144,7 +150,7 @@ export default function App() {
     }
   }
 
-  const runRender = async (name: string, handle: FileSystemDirectoryHandle) => {
+  const runRender = async (name: string, handle: FolderTarget) => {
     setRender({ done: 0, total: folderTotal + 1, rendered: new Set(), last: null })
     flash({ kind: 'info', text: (m) => m.creating })
     try {
