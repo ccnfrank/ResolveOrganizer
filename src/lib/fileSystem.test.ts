@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createProjectTree } from './fileSystem'
+import { createProjectTree, type RenderProgress } from './fileSystem'
 import { DEFAULT_STRUCTURE, type BinNode } from './binTree'
 
 /** Minimal fake of FileSystemDirectoryHandle that records the created path. */
@@ -35,5 +35,21 @@ describe('createProjectTree', () => {
     await createProjectTree(fakeDir('root', log), 'P', tree)
 
     expect(log).toEqual(['root/P', 'P/A', 'A/B'])
+  })
+
+  it('reports progress once per folder, in creation order', async () => {
+    const events: RenderProgress[] = []
+    const tree: BinNode[] = [{ name: 'A', children: [{ name: 'B' }] }, { name: 'C' }]
+
+    await createProjectTree(fakeDir('root', []), 'P', tree, (event) => {
+      events.push(event)
+    })
+
+    expect(events).toEqual([
+      { done: 1, total: 4, path: null },
+      { done: 2, total: 4, path: [0] },
+      { done: 3, total: 4, path: [0, 0] },
+      { done: 4, total: 4, path: [1] },
+    ])
   })
 })

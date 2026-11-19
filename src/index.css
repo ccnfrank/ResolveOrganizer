@@ -1,61 +1,85 @@
 @import 'tailwindcss';
 
+/*
+ * Graphite and silver. Cool neutrals carry the interface; silver marks the primary action and
+ * the sliders; steel blue marks the path being edited; danger is a muted rose. No warm hues.
+ *
+ * Contrast on ground: fg and accent above 14:1, dim above 6:1, steel above 7:1, danger above 6:1.
+ */
 @theme {
-  --color-bg: #0c0e11;
-  --color-panel: #14181e;
-  --color-line: #1f252d;
-  --color-text: #e7eaee;
-  --color-muted: #8b93a1;
-  --color-accent: #ffb23f;
-  --color-accent-2: #7dd3fc;
-  --color-danger: #fb7185;
-  --color-success: #6ee7b7;
-  --color-ink: #111318;
+  --color-ground: #0b0d10;
+  --color-surface: #111419;
+  --color-raised: #181c22;
+  --color-edge: #262c34;
+  --color-fg: #e9edf0;
+  --color-dim: #8c96a1;
+  --color-metal: #aeb8c1;
+  --color-accent: #d6dde3;
+  --color-steel: #7fa6c6;
+  --color-danger: #e07a7a;
+  --color-ink: #0b0d10;
 
-  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  --font-sans: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;
+  --font-title: 'Instrument Serif', ui-serif, Georgia, serif;
+
+  --animate-sweep: sweep 14s linear infinite;
+
+  @keyframes sweep {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 }
 
 @layer base {
   html {
     color-scheme: dark;
+    background-color: var(--color-ground);
   }
 
-  html,
   body {
-    @apply min-h-full bg-bg font-mono text-text antialiased;
+    @apply min-h-dvh font-sans text-fg antialiased;
+    background-color: var(--color-ground);
+    font-feature-settings: 'ss01' on;
   }
 
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+    border-radius: 6px;
   }
 
   ::selection {
-    background: rgb(255 178 63 / 0.28);
-    color: var(--color-text);
+    background: color-mix(in oklab, var(--color-accent) 32%, transparent);
+    color: var(--color-fg);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-weight: 600;
+    letter-spacing: -0.025em;
   }
 }
 
-/* Scrollbars themed to the panel instead of the browser default. */
 @utility thin-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #2a313b transparent;
+  scrollbar-color: var(--color-edge) transparent;
 }
 
-/* Faint graph-paper field behind the panels, like a node editor canvas. */
-@utility bg-grid {
-  background-image:
-    linear-gradient(to right, rgb(255 255 255 / 0.028) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / 0.028) 1px, transparent 1px);
-  background-size: 32px 32px;
+/* Tabular numerals wherever numbers are compared, not only in mono text. */
+@utility num {
+  font-variant-numeric: tabular-nums;
 }
 
+/* Keep the content, drop the loops: spinners and sweeps stop, transitions become instant. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation: none !important;
     transition-duration: 0.01ms !important;
   }
 }
