@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { Clapperboard, Folder, FolderOpen, LayoutGrid, Maximize2, Redo2, Undo2 } from 'lucide-react'
-import type { BinNode, Path } from '../lib/binTree'
+import { Clapperboard, Folder, FolderOpen, LayoutGrid, Maximize2, Plus, Redo2, Undo2 } from 'lucide-react'
+import { canReparent, type BinNode, type Path } from '../lib/binTree'
 import { layoutTree, pathKey, ROOT_KEY, type LayoutItem, type LayoutMode, type Point, type Positions } from '../lib/layout'
 import type { Messages } from '../i18n/messages'
 import { SliderField } from './SliderField'
@@ -10,6 +10,8 @@ const NODE_HEIGHT = 50
 const GAP_Y = 10
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 1.4
+/** The graph opens at this zoom, or narrower if the panel cannot hold it. */
+const DEFAULT_ZOOM = 0.75
 const DEFAULT_SPACING = 32
 const NARROW_BELOW = 560
 const DRAG_THRESHOLD_PX = 4
@@ -22,6 +24,8 @@ const FOLLOW = { duration: 0.18, ease: EASE } as const
 const SETTLE = { duration: 0.5, ease: EASE } as const
 /** The lift when a bin is grabbed, and the return when it is dropped. */
 const LIFT = { type: 'spring', stiffness: 380, damping: 30 } as const
+/** The empty selection. One shared instance, so clearing it does not re-render. */
+const NO_GROUP: ReadonlySet<string> = new Set<string>()
 
 type BinCanvasProps = {
   t: Messages
@@ -30,7 +34,16 @@ type BinCanvasProps = {
   selected: Path | null
   onSelect: (path: Path) => void
   positions: Positions
-  onMove: (id: string, point: Point) => void
+  /** Stores the new positions of one or more bins as a single undoable step. */
+  onMoveMany: (points: Record<string, Point>) => void
+  /** Nests the bin at the first path under the bin at the second (null: the project root). */
+  onReparent: (from: Path, to: Path | null) => void
+  /** Opens the add dialog for a sub-bin of the bin at `path`; null adds a top-level bin. */
+  onAddSub: (path: Path | null) => void
+  /** Opens the rename dialog for the bin at `path` (double-click on a bin). */
+  onRename: (path: Path) => void
+  /** Double-click on the project root: the project name is edited in the form. */
+  onRenameRoot: () => void
   onResetPositions: () => void
   canUndo: boolean
   canRedo: boolean
@@ -43,21 +56,83 @@ type BinCanvasProps = {
   footer: ReactNode
 }
 
+type DragMember = { id: string; originX: number; originY: number }
+
 type DragState = {
+  /** The bin the pointer pressed. */
   id: string
+  /** Null for the project root, which can be moved but not nested. */
+  path: Path | null
   pointerId: number
   startX: number
   startY: number
-  originX: number
-  originY: number
   moved: boolean
+  /** Every bin that moves with this press: the selection when the press is on it, else the bin alone. */
+  members: DragMember[]
+}
+
+/** The rectangle of a Shift + drag on the background, in content pixels. */
+type Marquee = { pointerId: number; x0: number; y0: number; x1: number; y1: number }
+
+/** The bin a dragged bin would be nested under. `path` is null for the project root. */
+type DropTarget = { key: string; path: Path | null }
+
+/**
+ * Ring shown on the bin a dragged bin would land in. Wider than the dragged bin's 3% lift, so it
+ * stays visible around the bin that is covering it.
+ */
+const DROP_RING = 'shadow-[0_0_0_9px_color-mix(in_oklab,var(--color-steel)_24%,transparent)]'
+
+/**
+ * The bin under the centre of a dragged bin, if dropping there would nest it. Positions are in
+ * layout pixels; `point` is where the dragged bin's top-left corner would sit.
+ */
+function findDropTarget(
+  items: LayoutItem[],
+  dragged: { id: string; path: Path },
+  point: Point,
+  size: { width: number; height: number },
+): DropTarget | null {
+  const cx = point.x + size.width / 2
+  const cy = point.y + size.height / 2
+  for (const item of items) {
+    // A loose bin cannot take children: only connected bins and the root are drop targets.
+    if (item.id === dragged.id || item.loose) continue
+    const inside = cx >= item.x && cx <= item.x + item.width && cy >= item.y && cy <= item.y + item.height
+    if (inside && canReparent(dragged.path, item.path)) return { key: item.key, path: item.path }
+  }
+  return null
+}
+
+/**
+ * The "+" inside a bin. It sits beside the name and never starts a drag: its pointer-down stops
+ * here, so a bin's own drag handlers (on the parent) do not see it.
+ */
+function AddSubButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onPointerDown={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onClick={onClick}
+      className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-md border border-edge bg-ground text-dim transition duration-200 hover:border-steel hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
+      <Plus size={13} aria-hidden="true" />
+    </button>
+  )
 }
 
 function RootNode({
   item,
   rendered,
   dragging,
+  dropTarget,
   draggable,
+  addLabel,
+  onAddSub,
+  onRenameRoot,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -65,13 +140,19 @@ function RootNode({
   item: LayoutItem
   rendered: boolean
   dragging: boolean
+  dropTarget: boolean
   draggable: boolean
+  addLabel: string
+  onAddSub: (path: Path | null) => void
+  onRenameRoot: () => void
   onPointerDown: (event: PointerEvent<HTMLDivElement>, item: LayoutItem) => void
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void
 }) {
   return (
     <motion.div
+      data-bin=""
+      onDoubleClick={onRenameRoot}
       onPointerDown={(event) => onPointerDown(event, item)}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -79,13 +160,16 @@ function RootNode({
       animate={{ x: item.x, y: item.y, scale: dragging ? 1.03 : 1 }}
       transition={{ x: dragging ? FOLLOW : SETTLE, y: dragging ? FOLLOW : SETTLE, scale: LIFT }}
       style={{ left: 0, top: 0, width: item.width, height: item.height, touchAction: 'none' }}
-      className={`absolute flex select-none items-center gap-2.5 rounded-xl border border-accent/45 bg-raised px-3.5 ${
+      className={`absolute flex select-none items-center gap-2.5 rounded-xl border bg-raised pl-3.5 pr-10 transition-[border-color,box-shadow] duration-200 ${
+        dropTarget ? `border-steel ${DROP_RING}` : 'border-accent/45'
+      } ${
         draggable ? (dragging ? 'z-10 cursor-grabbing shadow-[0_16px_32px_-14px_rgb(0_0_0/0.8)]' : 'cursor-grab') : ''
       }`}
     >
       <Clapperboard size={18} aria-hidden="true" className="shrink-0 text-accent" />
       <span className="min-w-0 truncate text-[17px] font-semibold text-fg">{item.name}</span>
       {rendered && <span aria-hidden="true" className="absolute -right-1 -top-1 size-2.5 rounded-full bg-steel" />}
+      <AddSubButton label={addLabel} onClick={() => onAddSub(null)} />
     </motion.div>
   )
 }
@@ -93,39 +177,46 @@ function RootNode({
 function BinNodeButton({
   item,
   isSelected,
+  inGroup,
   rendered,
   justRendered,
   dragging,
+  dropTarget,
   draggable,
   onPointerDown,
   onPointerMove,
   onPointerUp,
   onClickNode,
+  addLabel,
+  onAddSub,
+  onRename,
 }: {
   item: LayoutItem
   isSelected: boolean
+  /** Part of the multi-selection (Shift + click, or a marquee). */
+  inGroup: boolean
   rendered: boolean
   justRendered: boolean
   dragging: boolean
+  dropTarget: boolean
   draggable: boolean
   onPointerDown: (event: PointerEvent<HTMLButtonElement>, item: LayoutItem) => void
   onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void
   onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void
-  onClickNode: (path: Path) => void
+  onClickNode: (item: LayoutItem, additive: boolean) => void
+  addLabel: string
+  onAddSub: (path: Path | null) => void
+  onRename: (path: Path) => void
 }) {
   if (!item.path) return null
   const path = item.path
   const Icon = isSelected ? FolderOpen : Folder
 
   return (
-    <motion.button
-      type="button"
-      aria-pressed={isSelected}
-      onClick={() => onClickNode(path)}
-      onPointerDown={(event) => onPointerDown(event, item)}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+    // The wrapper carries the position and the entrance; the "+" is its sibling, so it is not
+    // nested inside the bin's button.
+    <motion.div
+      data-bin=""
       initial={{ opacity: 0, scale: 0.92 }}
       animate={{ opacity: 1, scale: dragging ? 1.03 : 1, x: item.x, y: item.y }}
       transition={{
@@ -134,33 +225,56 @@ function BinNodeButton({
         x: dragging ? FOLLOW : SETTLE,
         y: dragging ? FOLLOW : SETTLE,
       }}
-      style={{ left: 0, top: 0, width: item.width, height: item.height, touchAction: 'none' }}
-      className={`absolute flex select-none items-center gap-2.5 rounded-xl border px-3 text-left text-[13.5px] outline-none transition-[border-color,background-color,box-shadow,color] duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
-        draggable ? (dragging ? 'cursor-grabbing z-10' : 'cursor-grab') : 'cursor-pointer'
-      } ${
-        isSelected
-          ? 'border-steel bg-raised text-fg shadow-[0_0_0_1px_var(--color-steel),0_16px_32px_-16px_rgb(0_0_0/0.8)]'
-          : `border-edge bg-surface text-fg/90 hover:border-dim/50 hover:text-fg ${dragging ? 'shadow-[0_16px_32px_-14px_rgb(0_0_0/0.8)]' : ''}`
-      }`}
+      style={{ left: 0, top: 0, width: item.width, height: item.height }}
+      className={`absolute ${dragging ? 'z-10' : ''}`}
     >
-      <Icon size={16} aria-hidden="true" className={`shrink-0 ${isSelected ? 'text-steel' : 'text-accent'}`} />
-      <span className="min-w-0 flex-1 truncate font-medium">
-        {item.name}
-        <span className="text-dim">/</span>
-      </span>
-      {item.childCount > 0 && (
-        <span className="shrink-0 rounded-md bg-ground px-1.5 py-0.5 font-mono text-[11px] num text-dim">
-          {item.childCount}
+      <button
+        type="button"
+        aria-pressed={isSelected}
+        onClick={(event) => onClickNode(item, event.shiftKey || event.metaKey || event.ctrlKey)}
+        onDoubleClick={() => onRename(path)}
+        onPointerDown={(event) => onPointerDown(event, item)}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        style={{ touchAction: 'none' }}
+        className={`relative flex h-full w-full select-none items-center gap-2.5 rounded-xl border pl-3 pr-10 text-left text-[13.5px] outline-none transition-[border-color,background-color,box-shadow,color] duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+          draggable ? (dragging ? 'cursor-grabbing z-10' : 'cursor-grab') : 'cursor-pointer'
+        } ${
+          dropTarget
+            ? `border-steel bg-raised text-fg ${DROP_RING}`
+            : isSelected
+              ? 'border-steel bg-raised text-fg shadow-[0_0_0_1px_var(--color-steel),0_16px_32px_-16px_rgb(0_0_0/0.8)]'
+              : inGroup
+                ? 'border-steel/70 bg-raised text-fg'
+                : `border-edge bg-surface text-fg/90 hover:border-dim/50 hover:text-fg ${item.loose ? 'border-dashed' : ''} ${dragging ? 'shadow-[0_16px_32px_-14px_rgb(0_0_0/0.8)]' : ''}`
+        }`}
+      >
+        <Icon size={16} aria-hidden="true" className={`shrink-0 ${isSelected ? 'text-steel' : 'text-accent'}`} />
+        <span className="min-w-0 flex-1 truncate font-medium">
+          {item.name}
+          <span className="text-dim">/</span>
         </span>
-      )}
-      {rendered && (
-        <span aria-hidden="true" className="absolute -right-1 -top-1 size-2.5 rounded-full bg-steel" />
-      )}
-      {justRendered && (
-        <span aria-hidden="true" className="absolute -right-1 -top-1 size-2.5 animate-ping rounded-full bg-accent" />
-      )}
-    </motion.button>
+        {item.childCount > 0 && (
+          <span className="shrink-0 rounded-md bg-ground px-1.5 py-0.5 font-mono text-[11px] num text-dim">
+            {item.childCount}
+          </span>
+        )}
+        {rendered && (
+          <span aria-hidden="true" className="absolute -right-1 -top-1 size-2.5 rounded-full bg-steel" />
+        )}
+        {justRendered && (
+          <span aria-hidden="true" className="absolute -right-1 -top-1 size-2.5 animate-ping rounded-full bg-accent" />
+        )}
+      </button>
+      <AddSubButton label={addLabel} onClick={() => onAddSub(path)} />
+    </motion.div>
   )
+}
+
+/** Levels of bins below the project root; 0 when there are none. */
+function depthOf(nodes: BinNode[]): number {
+  return nodes.reduce((deepest, node) => Math.max(deepest, 1 + depthOf(node.children ?? [])), 0)
 }
 
 /**
@@ -174,7 +288,7 @@ export function BinCanvas({
   selected,
   onSelect,
   positions,
-  onMove,
+  onMoveMany,
   onResetPositions,
   canUndo,
   canRedo,
@@ -183,14 +297,28 @@ export function BinCanvas({
   renderedKeys,
   lastRendered,
   footer,
+  onReparent,
+  onAddSub,
+  onRename,
+  onRenameRoot,
 }: BinCanvasProps) {
   const [zoom, setZoom] = useState<number | null>(null)
   const [spacing, setSpacing] = useState(DEFAULT_SPACING)
   const [viewportWidth, setViewportWidth] = useState(0)
-  const [live, setLive] = useState<{ id: string; x: number; y: number } | null>(null)
+  /** Layout positions of the bins being dragged, by id. */
+  const [live, setLive] = useState<Record<string, Point> | null>(null)
+  const [dropKey, setDropKey] = useState<string | null>(null)
+  /** The multi-selection: bins that move together. Empty when nothing is grouped. */
+  const [group, setGroup] = useState<ReadonlySet<string>>(NO_GROUP)
+  const [marquee, setMarquee] = useState<Marquee | null>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
+  const sizerRef = useRef<HTMLDivElement>(null)
+  const pan = useRef<{ pointerId: number; x: number; y: number; left: number; top: number } | null>(null)
+  const [panning, setPanning] = useState(false)
+  const marqueeRef = useRef<Marquee | null>(null)
   const drag = useRef<DragState | null>(null)
-  const liveRef = useRef<Point | null>(null)
+  const liveRef = useRef<Record<string, Point> | null>(null)
+  const dropRef = useRef<DropTarget | null>(null)
   const suppressClick = useRef(false)
 
   useEffect(() => {
@@ -206,13 +334,13 @@ export function BinCanvas({
 
   const mode: LayoutMode = viewportWidth > 0 && viewportWidth < NARROW_BELOW ? 'list' : 'graph'
   const step = mode === 'graph' ? 24 + spacing : 12 + Math.round(spacing * 0.3)
-  const nodeWidth = mode === 'graph' ? 188 : Math.max(168, Math.min(280, viewportWidth - 2 * step - 8))
+  // List mode: the deepest bin is indented by `treeDepth` steps, so the rows must leave room for it.
+  const treeDepth = useMemo(() => depthOf(nodes), [nodes])
+  const nodeWidth =
+    mode === 'graph' ? 188 : Math.max(168, Math.min(280, viewportWidth - 2 * PAD - treeDepth * step))
 
-  // While a bin is being dragged, its live position overrides the stored one.
-  const effectivePositions = useMemo<Positions>(
-    () => (live ? { ...positions, [live.id]: { x: live.x, y: live.y } } : positions),
-    [positions, live],
-  )
+  // While bins are being dragged, their live positions override the stored ones.
+  const effectivePositions = useMemo<Positions>(() => (live ? { ...positions, ...live } : positions), [positions, live])
 
   const layout = useMemo(
     () =>
@@ -227,9 +355,11 @@ export function BinCanvas({
     [rootLabel, nodes, mode, nodeWidth, step, effectivePositions],
   )
 
-  // "Fit" shrinks the graph to the panel width, never above 100%; manual zoom overrides it.
-  const fit = mode === 'graph' && viewportWidth > 0 ? viewportWidth / layout.width : 1
-  const effective = zoom ?? (mode === 'graph' ? Math.min(1, Math.max(MIN_ZOOM, fit)) : 1)
+  // The width that fits the panel, minus the padding on both sides. "Fit" sets the zoom to it; until
+  // the user zooms, the graph opens at DEFAULT_ZOOM or at the fitting width, whichever is smaller.
+  const fit = mode === 'graph' && viewportWidth > 0 ? (viewportWidth - 2 * PAD) / layout.width : 1
+  const fitZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, fit))
+  const effective = zoom ?? (mode === 'graph' ? Math.min(DEFAULT_ZOOM, fitZoom) : 1)
   const zoomPercent = Math.round(effective * 100)
   const draggable = mode === 'graph'
 
@@ -244,17 +374,25 @@ export function BinCanvas({
 
   const selectedKey = selected ? pathKey(selected) : null
   const hasManualPositions = Object.keys(positions).length > 0
+  const isLive = (id: string) => live !== null && id in live
 
   const onNodePointerDown = (event: PointerEvent<HTMLElement>, item: LayoutItem) => {
     if (!draggable || event.button !== 0) return
+    // Pressing a bin of the selection moves the whole selection; any other bin moves alone.
+    const members =
+      group.has(item.id) && group.size > 1
+        ? layout.items
+            .filter((other) => group.has(other.id) && other.path !== null)
+            .map((other) => ({ id: other.id, originX: other.x, originY: other.y }))
+        : [{ id: item.id, originX: item.x, originY: item.y }]
     drag.current = {
       id: item.id,
+      path: item.path,
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      originX: item.x,
-      originY: item.y,
       moved: false,
+      members,
     }
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
@@ -264,14 +402,29 @@ export function BinCanvas({
     if (!current || current.pointerId !== event.pointerId) return
     const distance = Math.hypot(event.clientX - current.startX, event.clientY - current.startY)
     if (!current.moved && distance < DRAG_THRESHOLD_PX) return
+    if (!current.moved && !group.has(current.id)) setGroup(NO_GROUP)
     current.moved = true
     // The graph is scaled, so a screen pixel is 1 / zoom layout pixels.
-    const point = {
-      x: Math.max(0, current.originX + (event.clientX - current.startX) / effective),
-      y: Math.max(0, current.originY + (event.clientY - current.startY) / effective),
+    const dx = (event.clientX - current.startX) / effective
+    const dy = (event.clientY - current.startY) / effective
+    const points: Record<string, Point> = {}
+    for (const member of current.members) {
+      points[member.id] = { x: Math.max(0, member.originX + dx), y: Math.max(0, member.originY + dy) }
     }
-    liveRef.current = point
-    setLive({ id: current.id, ...point })
+    liveRef.current = points
+    setLive(points)
+
+    // Nesting is for one bin at a time: a group only moves.
+    const single = current.members.length === 1 ? points[current.id] : undefined
+    const target =
+      single && current.path
+        ? findDropTarget(layout.items, { id: current.id, path: current.path }, single, {
+            width: nodeWidth,
+            height: NODE_HEIGHT,
+          })
+        : null
+    dropRef.current = target
+    setDropKey(target?.key ?? null)
   }
 
   const onNodePointerUp = (event: PointerEvent<HTMLElement>) => {
@@ -283,19 +436,134 @@ export function BinCanvas({
     }
     if (current.moved && liveRef.current) {
       suppressClick.current = true
-      onMove(current.id, liveRef.current)
+      const target = dropRef.current
+      if (current.members.length === 1 && current.path && target) onReparent(current.path, target.path)
+      else onMoveMany(liveRef.current)
     }
     liveRef.current = null
+    dropRef.current = null
+    setDropKey(null)
     setLive(null)
   }
 
-  const onNodeClick = (path: Path) => {
+  /** A point in the graph's own pixels, measured from the top-left of the scrollable area's content. */
+  const contentPoint = (clientX: number, clientY: number): Point => {
+    const rect = sizerRef.current?.getBoundingClientRect()
+    return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) }
+  }
+
+  /** The bins a marquee rectangle touches. The project root is never part of a selection. */
+  const binsInside = (rect: Marquee): Set<string> => {
+    const left = (Math.min(rect.x0, rect.x1) - PAD) / effective
+    const right = (Math.max(rect.x0, rect.x1) - PAD) / effective
+    const top = (Math.min(rect.y0, rect.y1) - PAD) / effective
+    const bottom = (Math.max(rect.y0, rect.y1) - PAD) / effective
+    return new Set(
+      layout.items
+        .filter(
+          (item) =>
+            item.path !== null &&
+            item.x < right &&
+            item.x + item.width > left &&
+            item.y < bottom &&
+            item.y + item.height > top,
+        )
+        .map((item) => item.id),
+    )
+  }
+
+  /**
+   * Dragging the empty canvas pans it, like a hand on paper. Shift + dragging it draws a rectangle
+   * that selects the bins it touches. Presses that start on a bin are left to the bin's own drag.
+   */
+  const onViewportPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    const element = viewportRef.current
+    if (!element || event.button !== 0) return
+    if ((event.target as Element).closest('[data-bin]')) return
+    if (event.shiftKey && draggable) {
+      const start = contentPoint(event.clientX, event.clientY)
+      const rect = { pointerId: event.pointerId, x0: start.x, y0: start.y, x1: start.x, y1: start.y }
+      marqueeRef.current = rect
+      setMarquee(rect)
+      element.setPointerCapture?.(event.pointerId)
+      return
+    }
+    setGroup(NO_GROUP)
+    pan.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      left: element.scrollLeft,
+      top: element.scrollTop,
+    }
+    element.setPointerCapture?.(event.pointerId)
+    setPanning(true)
+  }
+
+  const onViewportPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const area = marqueeRef.current
+    if (area && area.pointerId === event.pointerId) {
+      const point = contentPoint(event.clientX, event.clientY)
+      const next = { ...area, x1: point.x, y1: point.y }
+      marqueeRef.current = next
+      setMarquee(next)
+      return
+    }
+    const current = pan.current
+    const element = viewportRef.current
+    if (!current || !element || current.pointerId !== event.pointerId) return
+    element.scrollLeft = current.left - (event.clientX - current.x)
+    element.scrollTop = current.top - (event.clientY - current.y)
+  }
+
+  const endPan = (event: PointerEvent<HTMLDivElement>) => {
+    const area = marqueeRef.current
+    if (area && area.pointerId === event.pointerId) {
+      marqueeRef.current = null
+      setMarquee(null)
+      setGroup(new Set(binsInside(area)))
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
+      return
+    }
+    const current = pan.current
+    if (!current || current.pointerId !== event.pointerId) return
+    pan.current = null
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    setPanning(false)
+  }
+
+  /** Shift, Cmd or Ctrl + click adds or removes a bin from the selection; a plain click selects it alone. */
+  const onNodeClick = (item: LayoutItem, additive: boolean) => {
     if (suppressClick.current) {
       suppressClick.current = false
       return
     }
-    onSelect(path)
+    if (additive) {
+      setGroup((previous) => {
+        const next = new Set(previous)
+        if (next.has(item.id)) next.delete(item.id)
+        else next.add(item.id)
+        return next
+      })
+      return
+    }
+    // A plain click starts a new selection that holds the clicked bin, so Shift + click can add to it.
+    setGroup(item.path ? new Set([item.id]) : NO_GROUP)
+    if (item.path) onSelect(item.path)
   }
+
+  const marqueeBox = marquee
+    ? {
+        left: Math.min(marquee.x0, marquee.x1),
+        top: Math.min(marquee.y0, marquee.y1),
+        width: Math.abs(marquee.x1 - marquee.x0),
+        height: Math.abs(marquee.y1 - marquee.y0),
+      }
+    : null
 
   return (
     <div className="flex min-w-0 flex-col">
@@ -332,13 +600,28 @@ export function BinCanvas({
               disabled={!hasManualPositions}
               onClick={onResetPositions}
             />
-            <CanvasTool label={t.fit} icon={Maximize2} disabled={zoom === null} onClick={() => setZoom(null)} />
+            <CanvasTool
+              label={t.fit}
+              icon={Maximize2}
+              disabled={mode !== 'graph'}
+              onClick={() => setZoom(fitZoom)}
+            />
           </div>
         </div>
       </div>
 
-      <div ref={viewportRef} className="thin-scroll relative h-[min(72vh,740px)] min-h-[480px] overflow-auto">
+      <div
+        ref={viewportRef}
+        onPointerDown={onViewportPointerDown}
+        onPointerMove={onViewportPointerMove}
+        onPointerUp={endPan}
+        onPointerCancel={endPan}
+        className={`thin-scroll relative h-[min(72vh,740px)] min-h-[480px] select-none overflow-auto ${
+          panning ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+      >
         <div
+          ref={sizerRef}
           className="relative"
           style={{ width: layout.width * effective + 2 * PAD, height: layout.height * effective + 2 * PAD }}
         >
@@ -379,8 +662,12 @@ export function BinCanvas({
                   key={item.key}
                   item={item}
                   rendered={renderedKeys.has(item.key)}
-                  dragging={live?.id === item.id}
+                  dragging={isLive(item.id)}
+                  dropTarget={dropKey === item.key}
                   draggable={draggable}
+                  addLabel={t.addSubBin}
+                  onAddSub={onAddSub}
+                  onRenameRoot={onRenameRoot}
                   onPointerDown={onNodePointerDown}
                   onPointerMove={onNodePointerMove}
                   onPointerUp={onNodePointerUp}
@@ -390,14 +677,19 @@ export function BinCanvas({
                   key={item.key}
                   item={item}
                   isSelected={item.key === selectedKey}
+                  inGroup={group.has(item.id)}
                   rendered={renderedKeys.has(item.key)}
                   justRendered={item.key === lastRendered}
-                  dragging={live?.id === item.id}
+                  dragging={isLive(item.id)}
+                  dropTarget={dropKey === item.key}
                   draggable={draggable}
                   onPointerDown={onNodePointerDown}
                   onPointerMove={onNodePointerMove}
                   onPointerUp={onNodePointerUp}
                   onClickNode={onNodeClick}
+                  addLabel={t.addSubBin}
+                  onAddSub={onAddSub}
+                  onRename={onRename}
                 />
               ),
             )}
@@ -408,12 +700,19 @@ export function BinCanvas({
               </p>
             )}
           </div>
+
+          {marqueeBox && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute rounded-md border border-steel/70 bg-steel/10"
+              style={marqueeBox}
+            />
+          )}
         </div>
       </div>
 
       <div className="grid gap-4 border-t border-edge px-5 py-5 sm:px-6">
         {footer}
-        {draggable && <p className="text-xs text-dim">{t.dragHint}</p>}
       </div>
     </div>
   )

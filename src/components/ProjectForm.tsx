@@ -1,4 +1,3 @@
-import type { Ref } from 'react'
 import { ChevronRight, HardDrive, RotateCcw } from 'lucide-react'
 import type { Messages } from '../i18n/messages'
 import { RenderButton } from './RenderButton'
@@ -9,7 +8,6 @@ type ProjectFormProps = {
   destinationLabel: string
   busy: boolean
   progress: { done: number; total: number } | null
-  renderRef: Ref<HTMLButtonElement>
   onProjectNameChange: (value: string) => void
   onSelectFolder: () => void
   onCreate: () => void
@@ -28,6 +26,7 @@ export function ProjectForm(props: ProjectFormProps) {
       <label className="grid gap-2">
         <span className="text-sm text-dim">{t.projectName}</span>
         <input
+          id="project-name"
           type="text"
           value={props.projectName}
           placeholder={t.projectPlaceholder}
@@ -47,10 +46,10 @@ export function ProjectForm(props: ProjectFormProps) {
           type="button"
           onClick={props.onSelectFolder}
           disabled={busy}
-          className="group flex min-w-0 items-center gap-3 rounded-xl border border-edge bg-ground p-2.5 text-left transition duration-200 hover:border-dim/50 disabled:opacity-50"
+          className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-edge bg-ground p-1.5 text-left transition duration-200 hover:border-dim/50 disabled:opacity-50"
         >
-          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-raised text-accent">
-            <HardDrive size={18} aria-hidden="true" />
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-raised text-accent">
+            <HardDrive size={15} aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium text-fg">{props.destinationLabel}</span>
@@ -66,7 +65,6 @@ export function ProjectForm(props: ProjectFormProps) {
 
       <div className="grid gap-3">
         <RenderButton
-          buttonRef={props.renderRef}
           label={t.createProject}
           busyLabel={t.creatingBusy}
           progressLabel={progress ? t.renderProgress(progress.done, progress.total) : ''}

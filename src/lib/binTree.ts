@@ -3,6 +3,11 @@ export type BinNode = {
   id?: string
   name: string
   children?: BinNode[]
+  /**
+   * A new bin that is not yet nested under another: drawn loose on the graph and left out of the
+   * project folder until it is dropped onto a bin.
+   */
+  loose?: boolean
 }
 
 /** Index path from the root list down to a node, e.g. [2, 0] = third root item's first child. */
@@ -33,7 +38,25 @@ export function cloneTree(nodes: BinNode[]): BinNode[] {
     id: node.id ?? createId(),
     name: node.name,
     ...(node.children ? { children: cloneTree(node.children) } : {}),
+    ...(node.loose ? { loose: true } : {}),
   }))
+}
+
+/** The bins that belong to the project: everything except loose bins, at every level. */
+export function connectedNodes(nodes: BinNode[]): BinNode[] {
+  return nodes
+    .filter((node) => !node.loose)
+    .map((node) => ({
+      ...node,
+      ...(node.children ? { children: connectedNodes(node.children) } : {}),
+    }))
+}
+
+/** Adds a loose bin at the top level. It has no parent and no children. */
+export function addLoose(nodes: BinNode[], name: string): { nodes: BinNode[]; path: Path } {
+  const next = cloneTree(nodes)
+  next.push({ id: createId(), name, loose: true })
+  return { nodes: next, path: [next.length - 1] }
 }
 
 export function getNode(nodes: BinNode[], path: Path): BinNode | null {
@@ -114,6 +137,64 @@ export function moveNode(
   if (!list || target < 0 || target >= list.length) return { nodes: next, path }
   ;[list[index], list[target]] = [list[target], list[index]]
   return { nodes: next, path: [...parentPath, target] }
+}
+
+/**
+ * Whether the node at `from` can become a child of the node at `to` (`null` is the project root).
+ * Not into itself or into its own subtree, and not where it already is.
+ */
+export function canReparent(from: Path, to: Path | null): boolean {
+  if (from.length === 0) return false
+  const destination = to ?? []
+  const insideItself =
+    destination.length >= from.length && from.every((index, depth) => destination[depth] === index)
+  if (insideItself) return false
+  const parent = from.slice(0, -1)
+  const alreadyThere =
+    parent.length === destination.length && parent.every((index, depth) => destination[depth] === index)
+  return !alreadyThere
+}
+
+/** Path of the node with `id`, or null when no node has it. */
+export function findPath(nodes: BinNode[], id: string, prefix: Path = []): Path | null {
+  for (let index = 0; index < nodes.length; index++) {
+    const node = nodes[index]
+    const path = [...prefix, index]
+    if (node.id === id) return path
+    const found = node.children ? findPath(node.children, id, path) : null
+    if (found) return found
+  }
+  return null
+}
+
+/**
+ * Moves the node at `from` to the end of the children of the node at `to` (`null` puts it at the
+ * top level). Its subtree moves with it. Callers check `canReparent` first.
+ */
+export function reparentNode(
+  nodes: BinNode[],
+  from: Path,
+  to: Path | null,
+): { nodes: BinNode[]; path: Path } {
+  const next = cloneTree(nodes)
+  const moving = getNode(next, from)
+  if (!moving) return { nodes: next, path: from }
+  const destination = to === null ? null : getNode(next, to)
+  if (to !== null && !destination) return { nodes: next, path: from }
+
+  const parentPath = from.slice(0, -1)
+  const siblings = parentPath.length === 0 ? next : getNode(next, parentPath)?.children
+  if (!siblings) return { nodes: next, path: from }
+  siblings.splice(from[from.length - 1], 1)
+  // Moving a bin under another connects it.
+  delete moving.loose
+
+  if (destination) {
+    destination.children = [...(destination.children ?? []), moving]
+  } else {
+    next.push(moving)
+  }
+  return { nodes: next, path: findPath(next, moving.id ?? '') ?? from }
 }
 
 export function countFolders(nodes: BinNode[]): number {

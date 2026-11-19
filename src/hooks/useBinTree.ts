@@ -3,13 +3,14 @@ import {
   DEFAULT_STRUCTURE,
   cloneTree,
   collectIds,
+  canReparent,
+  addLoose,
   getNode,
-  insertChild,
-  insertSibling,
   isValidPath,
   moveNode,
   removeNode,
   renameNode,
+  reparentNode,
   type BinNode,
   type Path,
 } from '../lib/binTree'
@@ -54,18 +55,16 @@ export function useBinTree(initial: BinNode[] = DEFAULT_STRUCTURE) {
     }))
   }
 
+  /** New bins are loose: they stay unlinked until they are dropped onto another bin. */
   const addSibling = (name: string) => {
-    const result = insertSibling(nodes, selected ?? [], name)
+    const result = addLoose(nodes, name)
     commit({ nodes: result.nodes, positions })
     setSelected(result.path)
   }
 
-  /** Returns false when nothing is selected, so the caller can explain why. */
+  /** Adds a loose bin, the same as addSibling; the selection does not change where it goes. */
   const addChild = (name: string): boolean => {
-    if (!selected) return false
-    const result = insertChild(nodes, selected, name)
-    commit({ nodes: result.nodes, positions })
-    setSelected(result.path)
+    addSibling(name)
     return true
   }
 
@@ -88,9 +87,27 @@ export function useBinTree(initial: BinNode[] = DEFAULT_STRUCTURE) {
     setSelected(result.path)
   }
 
+  /**
+   * Makes the bin at `from` a child of the bin at `to` (null: top level). Its manual position is
+   * dropped, so it takes its place in the new branch. Invalid drops change nothing.
+   */
+  const reparent = (from: Path, to: Path | null) => {
+    if (!canReparent(from, to)) return
+    const result = reparentNode(nodes, from, to)
+    const id = getNode(nodes, from)?.id
+    const { [id ?? '']: _dropped, ...kept } = positions
+    commit({ nodes: result.nodes, positions: kept })
+    setSelected(result.path)
+  }
+
   /** Moves one bin on the graph. Manual positions are part of the history. */
   const setPosition = (id: string, point: Point) => {
     commit({ nodes, positions: { ...positions, [id]: point } })
+  }
+
+  /** Moves several bins at once; the whole move is one undo step. */
+  const setPositions = (points: Positions) => {
+    commit({ nodes, positions: { ...positions, ...points } })
   }
 
   const resetPositions = () => {
@@ -148,7 +165,9 @@ export function useBinTree(initial: BinNode[] = DEFAULT_STRUCTURE) {
     rename,
     remove,
     move,
+    reparent,
     setPosition,
+    setPositions,
     resetPositions,
     applyTree,
     renumber,

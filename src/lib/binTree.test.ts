@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_STRUCTURE,
+  addLoose,
+  canReparent,
+  connectedNodes,
+  cloneTree,
   countFolders,
+  findPath,
   getNode,
   insertChild,
   insertSibling,
   moveNode,
   removeNode,
   renameNode,
+  reparentNode,
   type BinNode,
 } from './binTree'
 
@@ -76,5 +82,99 @@ describe('binTree', () => {
 
   it('returns null for a missing path', () => {
     expect(getNode(sample(), [5])).toBeNull()
+  })
+})
+
+describe('canReparent', () => {
+  it('refuses to nest a bin into itself or into its own subtree', () => {
+    expect(canReparent([0], [0])).toBe(false)
+    expect(canReparent([0], [0, 1, 0])).toBe(false)
+  })
+
+  it('refuses a drop onto the bin that already holds it', () => {
+    expect(canReparent([0, 1], [0])).toBe(false)
+    expect(canReparent([1], null)).toBe(false)
+  })
+
+  it('allows nesting under another bin, and moving a child to the top level', () => {
+    expect(canReparent([1], [0])).toBe(true)
+    expect(canReparent([0, 1], null)).toBe(true)
+    expect(canReparent([0, 1], [2])).toBe(true)
+  })
+})
+
+describe('reparentNode', () => {
+  const nested = (): BinNode[] =>
+    cloneTree([
+      { name: 'A', children: [{ name: 'A1' }, { name: 'A2', children: [{ name: 'A2a' }] }] },
+      { name: 'B' },
+      { name: 'C' },
+    ])
+
+  it('makes a top-level bin the last child of another bin, keeping its subtree', () => {
+    const result = reparentNode(nested(), [0], [1])
+    expect(result.nodes.map((node) => node.name)).toEqual(['B', 'C'])
+    expect(getNode(result.nodes, [0])?.children?.map((node) => node.name)).toEqual(['A'])
+    expect(getNode(result.nodes, [0, 0])?.children?.map((node) => node.name)).toEqual(['A1', 'A2'])
+    expect(result.path).toEqual([0, 0])
+  })
+
+  it('appends after existing children', () => {
+    const result = reparentNode(nested(), [2], [0])
+    expect(getNode(result.nodes, [0])?.children?.map((node) => node.name)).toEqual(['A1', 'A2', 'C'])
+    expect(result.path).toEqual([0, 2])
+  })
+
+  it('moves a child to the top level when the target is the project root', () => {
+    const result = reparentNode(nested(), [0, 1], null)
+    expect(result.nodes.map((node) => node.name)).toEqual(['A', 'B', 'C', 'A2'])
+    expect(result.path).toEqual([3])
+  })
+
+  it('keeps ids, so the bin still follows its manual position', () => {
+    const before = nested()
+    const id = getNode(before, [2])?.id
+    const result = reparentNode(before, [2], [0])
+    expect(getNode(result.nodes, [0, 2])?.id).toBe(id)
+  })
+
+  it('does not change the input tree', () => {
+    const before = nested()
+    reparentNode(before, [0], [1])
+    expect(before.map((node) => node.name)).toEqual(['A', 'B', 'C'])
+  })
+
+  it('finds a nested bin by id', () => {
+    const nodes = nested()
+    const id = getNode(nodes, [0, 1, 0])?.id ?? ''
+    expect(findPath(nodes, id)).toEqual([0, 1, 0])
+    expect(findPath(nodes, 'missing')).toBeNull()
+  })
+})
+
+describe('loose bins', () => {
+  it('adds a loose bin at the top level', () => {
+    const result = addLoose(DEFAULT_STRUCTURE, 'Solto')
+    expect(result.path).toEqual([DEFAULT_STRUCTURE.length])
+    expect(getNode(result.nodes, result.path)).toMatchObject({ name: 'Solto', loose: true })
+  })
+
+  it('leaves loose bins out of the connected tree at every level', () => {
+    const { nodes } = addLoose(cloneTree([{ name: 'A', children: [{ name: 'A1' }] }]), 'Solto')
+    const connected = connectedNodes(nodes)
+    expect(connected.map((node) => node.name)).toEqual(['A'])
+    expect(countFolders(connected)).toBe(2)
+  })
+
+  it('connects a loose bin when it is dropped under another bin', () => {
+    const { nodes } = addLoose(cloneTree([{ name: 'A' }]), 'Solto')
+    const result = reparentNode(nodes, [1], [0])
+    expect(getNode(result.nodes, [0, 0])).toMatchObject({ name: 'Solto' })
+    expect(getNode(result.nodes, [0, 0])?.loose).toBeUndefined()
+  })
+
+  it('keeps the loose flag when the tree is copied', () => {
+    const { nodes } = addLoose([], 'Solto')
+    expect(cloneTree(nodes)[0].loose).toBe(true)
   })
 })

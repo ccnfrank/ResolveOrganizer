@@ -9,8 +9,35 @@ describe('layoutTree', () => {
   it('places the project root and every bin of the default structure', () => {
     const layout = layoutTree('Demo', DEFAULT_STRUCTURE, { ...base, mode: 'graph' })
     expect(layout.items).toHaveLength(14)
-    expect(layout.items[0]).toMatchObject({ key: 'root', path: null, depth: 0, x: 0, y: 0 })
+    expect(layout.items[0]).toMatchObject({ key: 'root', path: null, depth: 0, x: 0 })
     expect(layout.edges).toHaveLength(13)
+  })
+
+  it('starts the project root level with the middle of the bins', () => {
+    const layout = layoutTree('Demo', DEFAULT_STRUCTURE, { ...base, mode: 'graph' })
+    const bins = layout.items.slice(1)
+    const top = bins[0].y
+    const bottom = bins.at(-1)!.y + base.nodeHeight
+    expect(layout.items[0].y).toBe((top + bottom - base.nodeHeight) / 2)
+  })
+
+  it('grows the project root to show its name and moves the columns right', () => {
+    const short = layoutTree('Demo', DEFAULT_STRUCTURE, { ...base, mode: 'graph' })
+    const long = layoutTree('Client Campaign Final Cut', DEFAULT_STRUCTURE, { ...base, mode: 'graph' })
+    expect(long.items[0].width).toBeGreaterThan(base.nodeWidth)
+    const rootRight = long.items[0].x + long.items[0].width
+    const audio = long.items.find((item) => item.key === pathKey([2]))!
+    expect(audio.x).toBeGreaterThanOrEqual(rootRight + base.step)
+    expect(short.items[0].width).toBe(base.nodeWidth)
+  })
+
+  it('keeps a dragged project root where it was dropped', () => {
+    const layout = layoutTree('Demo', DEFAULT_STRUCTURE, {
+      ...base,
+      mode: 'graph',
+      positions: { root: { x: 40, y: 10 } },
+    })
+    expect(layout.items[0]).toMatchObject({ x: 40, y: 10 })
   })
 
   it('puts each depth in its own column in graph mode', () => {
@@ -26,7 +53,8 @@ describe('layoutTree', () => {
     const stride = base.nodeHeight + base.gapY
     layout.items.forEach((item, index) => {
       expect(item.order).toBe(index)
-      expect(item.y).toBe(index * stride)
+      // The project root is centred on the bins, so only the bins follow the stride
+      if (index > 0) expect(item.y).toBe(index * stride)
     })
     // 02_Audio is followed by its three children before 03_Assets
     const keys = layout.items.map((item) => item.key)
@@ -70,5 +98,25 @@ describe('layoutTree manual positions', () => {
     const tree: BinNode[] = [{ id, name: 'Dragged' }]
     const layout = layoutTree('Demo', tree, { ...base, mode: 'list', positions: { [id]: { x: 500, y: 90 } } })
     expect(layout.items.find((entry) => entry.id === id)!.x).toBe(base.step)
+  })
+})
+
+describe('layoutTree loose bins', () => {
+  const withLoose: BinNode[] = [{ name: 'A' }, { name: 'Solto', loose: true }]
+
+  it('draws no connector to a loose bin', () => {
+    const layout = layoutTree('Demo', withLoose, { ...base, mode: 'graph' })
+    const loose = layout.items.find((item) => item.name === 'Solto')!
+    expect(loose.loose).toBe(true)
+    expect(layout.edges.some((edge) => edge.to === loose.key)).toBe(false)
+    expect(layout.edges.some((edge) => edge.to === pathKey([0]))).toBe(true)
+  })
+
+  it('places loose bins in a lane to the right of the connected tree', () => {
+    const layout = layoutTree('Demo', withLoose, { ...base, mode: 'graph' })
+    const connected = layout.items.filter((item) => !item.loose)
+    const treeRight = Math.max(...connected.map((item) => item.x + item.width))
+    const loose = layout.items.find((item) => item.name === 'Solto')!
+    expect(loose.x).toBeGreaterThan(treeRight)
   })
 })

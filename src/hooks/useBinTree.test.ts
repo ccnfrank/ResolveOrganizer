@@ -57,6 +57,20 @@ describe('useBinTree positions', () => {
     expect(result.current.positions[id]).toEqual({ x: 10, y: 20 })
   })
 
+  it('moves several bins as one step that a single undo reverts', () => {
+    const { result } = renderHook(() => useBinTree())
+    const first = result.current.nodes[0].id!
+    const second = result.current.nodes[1].id!
+    act(() =>
+      result.current.setPositions({ [first]: { x: 10, y: 10 }, [second]: { x: 20, y: 30 } }),
+    )
+    expect(result.current.positions[first]).toEqual({ x: 10, y: 10 })
+    expect(result.current.positions[second]).toEqual({ x: 20, y: 30 })
+
+    act(() => result.current.undo())
+    expect(result.current.positions).toEqual({})
+  })
+
   it('forgets positions of bins that were removed', () => {
     const { result } = renderHook(() => useBinTree())
     const id = result.current.nodes[1].id!

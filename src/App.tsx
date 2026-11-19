@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useBinTree } from './hooks/useBinTree'
 import { useLanguage } from './i18n/useLanguage'
-import { countFolders, getNode, type BinNode, type Path } from './lib/binTree'
-import { celebrate } from './lib/celebrate'
+import { connectedNodes, countFolders, getNode, type BinNode, type Path } from './lib/binTree'
 import { createProjectTree, folderExists, pickDirectory, supportsDirectoryPicker } from './lib/fileSystem'
 import { pathKey } from './lib/layout'
 import { prefersReducedMotion, sleep } from './lib/motion'
@@ -16,11 +15,9 @@ import {
   type CustomPreset,
   type PresetId,
 } from './lib/presets'
-import { ensureWritable, loadRecentFolders, rememberFolder, type RecentFolder } from './lib/recentFolders'
 import { sanitizeName } from './lib/sanitize'
 import { Alerts } from './components/Alerts'
 import { Brand } from './components/Brand'
-import { BinActions } from './components/BinActions'
 import { BinCanvas } from './components/BinCanvas'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { LanguageSwitch } from './components/LanguageSwitch'
@@ -28,10 +25,8 @@ import { NameDialog } from './components/NameDialog'
 import { OutputPreview } from './components/OutputPreview'
 import { PresetPicker, type PresetChip } from './components/PresetPicker'
 import { ProjectForm } from './components/ProjectForm'
-import { RecentFolders } from './components/RecentFolders'
 import { Splash } from './components/Splash'
 import { StatusMessage, type Status } from './components/StatusMessage'
-import type { Messages } from './i18n/messages'
 
 type Dialog = 'sibling' | 'child' | 'rename' | 'remove' | 'savePreset' | 'exists' | null
 
@@ -72,24 +67,18 @@ function downloadJson(fileName: string, text: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-function celebrateOrigin(element: HTMLElement | null) {
-  celebrate(element)
-}
-
 export default function App() {
   const { lang, setLang, t } = useLanguage()
   const tree = useBinTree()
 
   const [projectName, setProjectName] = useState('')
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null)
-  const [recents, setRecents] = useState<RecentFolder[]>([])
   const [existingName, setExistingName] = useState<string | null>(null)
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>(() => loadCustomPresets())
   const [render, setRender] = useState<RenderState | null>(null)
   const [status, setStatus] = useState<Status | null>(null)
   const [dialog, setDialog] = useState<Dialog>(null)
   const [booting, setBooting] = useState(() => !prefersReducedMotion())
-  const renderButtonRef = useRef<HTMLButtonElement>(null)
 
   const busy = render !== null
   const flash = useCallback((next: Status) => setStatus(next), [])
@@ -107,15 +96,6 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [booting])
 
-  useEffect(() => {
-    let alive = true
-    void loadRecentFolders().then((list) => {
-      if (alive) setRecents(list)
-    })
-    return () => {
-      alive = false
-    }
-  }, [])
 
   // Warn while typing when the destination already holds a folder with this name.
   useEffect(() => {
@@ -141,12 +121,10 @@ export default function App() {
   }, [dirHandle, projectName])
 
   const previewRoot = sanitizeName(projectName) || t.projectPlaceholderRoot
-  const folderTotal = countFolders(tree.nodes)
-
-  const rememberChosen = async (handle: FileSystemDirectoryHandle) => {
-    setDirHandle(handle)
-    setRecents(await rememberFolder(handle))
-  }
+  // Loose bins are not part of the project until they are nested: only connected bins are created,
+  // saved and previewed.
+  const folderNodes = connectedNodes(tree.nodes)
+  const folderTotal = countFolders(folderNodes)
 
   const onSelectFolder = async () => {
     if (!supportsDirectoryPicker()) {
@@ -156,24 +134,9 @@ export default function App() {
     try {
       const handle = await pickDirectory()
       if (handle) {
-        await rememberChosen(handle)
+        setDirHandle(handle)
         flash({ kind: 'success', text: (m) => m.folderSelected(handle.name) })
       }
-    } catch {
-      flash({ kind: 'error', text: (m) => m.folderSelectError })
-    }
-  }
-
-  const onPickRecent = async (index: number) => {
-    const entry = recents[index]
-    if (!entry) return
-    try {
-      if (!(await ensureWritable(entry.handle))) {
-        flash({ kind: 'error', text: (m) => m.permissionDenied })
-        return
-      }
-      await rememberChosen(entry.handle)
-      flash({ kind: 'success', text: (m) => m.folderSelected(entry.name) })
     } catch {
       flash({ kind: 'error', text: (m) => m.folderSelectError })
     }
@@ -183,7 +146,7 @@ export default function App() {
     setRender({ done: 0, total: folderTotal + 1, rendered: new Set(), last: null })
     flash({ kind: 'info', text: (m) => m.creating })
     try {
-      await createProjectTree(handle, name, tree.nodes, async ({ done, total, path }) => {
+      await createProjectTree(handle, name, folderNodes, async ({ done, total, path }) => {
         const key = pathKey(path)
         setRender((prev) => ({
           done,
@@ -196,7 +159,6 @@ export default function App() {
       setProjectName('')
       setExistingName(null)
       tree.select(null)
-      celebrateOrigin(renderButtonRef.current)
       flash({ kind: 'success', text: (m) => m.created(name) })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -237,12 +199,6 @@ export default function App() {
     flash({ kind: 'info', text: (m) => m.cleared })
   }
 
-  const requireSelection = (message: (m: Messages) => string): boolean => {
-    if (tree.selected) return true
-    flash({ kind: 'error', text: message })
-    return false
-  }
-
   const handleDialogSubmit = (name: string) => {
     if (dialog === 'sibling') {
       tree.addSibling(name)
@@ -253,7 +209,7 @@ export default function App() {
       tree.rename(name)
       flash({ kind: 'success', text: (m) => m.renamedTo(name) })
     } else if (dialog === 'savePreset') {
-      const preset: CustomPreset = { id: `custom-${Date.now().toString(36)}`, name, nodes: tree.nodes }
+      const preset: CustomPreset = { id: `custom-${Date.now().toString(36)}`, name, nodes: folderNodes }
       const next = [...customPresets, preset]
       setCustomPresets(next)
       saveCustomPresets(next)
@@ -273,6 +229,7 @@ export default function App() {
   }
 
   const builtinLabel: Record<PresetId, string> = {
+    start: t.presetStart,
     default: t.presetDefault,
     documentary: t.presetDocumentary,
     commercial: t.presetCommercial,
@@ -304,7 +261,7 @@ export default function App() {
 
   const exportPreset = () => {
     const name = previewRoot
-    downloadJson(`${name}.json`, serializePreset(name, tree.nodes))
+    downloadJson(`${name}.json`, serializePreset(name, folderNodes))
     flash({ kind: 'success', text: (m) => m.presetExported(name) })
   }
 
@@ -342,6 +299,13 @@ export default function App() {
         flash({ kind: 'info', text: (m) => m.redone })
         return
       }
+      // N adds a loose bin: it is linked only when it is dropped onto another bin.
+      if (!mod && !event.altKey && !event.shiftKey && key === 'n') {
+        event.preventDefault()
+        setDialog('sibling')
+        return
+      }
+
       if (mod || event.shiftKey) return
 
       const paths = flattenPaths(tree.nodes)
@@ -396,34 +360,20 @@ export default function App() {
   const footer = (
     <div className="grid gap-4">
       <Alerts t={t} existingName={existingName} />
-      <div className="flex min-w-0 items-center gap-2.5 rounded-lg border border-edge bg-ground px-3.5 py-2.5 font-mono text-xs text-dim">
-        <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-steel" />
-        <span className="min-w-0 truncate" title={selectedPathLabel || undefined}>
-          {selectedPathLabel || t.nothingSelected}
-        </span>
-      </div>
-      <BinActions
-        t={t}
-        hasSelection={!!tree.selected}
-        onAddSibling={() => setDialog('sibling')}
-        onAddChild={() => {
-          if (requireSelection((m) => m.selectFirstChild)) setDialog('child')
-        }}
-        onRename={() => {
-          if (requireSelection((m) => m.selectFirst)) setDialog('rename')
-        }}
-        onRemove={() => {
-          if (requireSelection((m) => m.selectFirst)) setDialog('remove')
-        }}
-        onMoveUp={() => tree.move(-1)}
-        onMoveDown={() => tree.move(1)}
-      />
+      {selectedPathLabel && (
+        <div className="flex min-w-0 items-center gap-2.5 rounded-lg border border-edge bg-ground px-3.5 py-2.5 font-mono text-xs text-dim">
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-steel" />
+          <span className="min-w-0 truncate" title={selectedPathLabel}>
+            {selectedPathLabel}
+          </span>
+        </div>
+      )}
     </div>
   )
 
   return (
     <div className="relative min-h-dvh">
-      <main className="relative mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-8 sm:py-10">
+      <main className="relative mx-auto flex w-full max-w-[1400px] flex-col gap-5 px-4 py-6 sm:px-8 sm:py-10">
         <motion.header
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -450,17 +400,10 @@ export default function App() {
               destinationLabel={dirHandle?.name ?? t.noFolder}
               busy={busy}
               progress={render ? { done: render.done, total: render.total } : null}
-              renderRef={renderButtonRef}
               onProjectNameChange={setProjectName}
               onSelectFolder={onSelectFolder}
               onCreate={onCreate}
               onReset={onReset}
-            />
-            <RecentFolders
-              t={t}
-              names={recents.map((entry) => entry.name)}
-              disabled={busy}
-              onPick={onPickRecent}
             />
             <PresetPicker
               t={t}
@@ -475,8 +418,8 @@ export default function App() {
               t={t}
               destination={dirHandle?.name ?? '…'}
               root={previewRoot}
-              names={tree.nodes.slice(0, PREVIEW_ROWS).map((node) => node.name)}
-              hidden={Math.max(0, tree.nodes.length - PREVIEW_ROWS)}
+              names={folderNodes.slice(0, PREVIEW_ROWS).map((node) => node.name)}
+              hidden={Math.max(0, folderNodes.length - PREVIEW_ROWS)}
             />
           </motion.aside>
 
@@ -493,7 +436,17 @@ export default function App() {
               selected={tree.selected}
               onSelect={(path) => tree.select(path)}
               positions={tree.positions}
-              onMove={tree.setPosition}
+              onMoveMany={tree.setPositions}
+              onReparent={tree.reparent}
+              onRename={(path) => {
+                tree.select(path)
+                setDialog('rename')
+              }}
+              onRenameRoot={() => document.getElementById('project-name')?.focus()}
+              onAddSub={(path) => {
+                tree.select(path)
+                setDialog(path ? 'child' : 'sibling')
+              }}
               onResetPositions={tree.resetPositions}
               canUndo={tree.canUndo}
               canRedo={tree.canRedo}

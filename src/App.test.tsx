@@ -26,7 +26,7 @@ describe('App', () => {
   it('adds a bin through the dialog', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Add bin' }))
+    await user.keyboard('n')
     const dialog = screen.getByRole('dialog')
     const input = within(dialog).getByRole('textbox')
     await user.clear(input)
@@ -38,7 +38,7 @@ describe('App', () => {
   it('shows an error and keeps the dialog open when the name is empty', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Add bin' }))
+    await user.keyboard('n')
     const dialog = screen.getByRole('dialog')
     await user.clear(within(dialog).getByRole('textbox'))
     await user.click(within(dialog).getByRole('button', { name: 'Save' }))
@@ -50,7 +50,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
     await user.click(screen.getByRole('button', { name: /02_Audio/ }))
-    await user.click(screen.getByRole('button', { name: 'Remove' }))
+    await user.keyboard('{Delete}')
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText(/02_Audio/)).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }))
@@ -67,6 +67,21 @@ describe('App', () => {
     expect(screen.getByText('Enter the project name.')).toBeInTheDocument()
   })
 
+  it('adds a loose bin with the plus inside a bin, not linked to it', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const node = screen.getByRole('button', { name: /02_Audio/ })
+    await user.click(within(node.parentElement as HTMLElement).getByRole('button', { name: 'Add loose bin' }))
+    const dialog = screen.getByRole('dialog')
+    const input = within(dialog).getByRole('textbox')
+    await user.clear(input)
+    await user.type(input, 'Foley')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(screen.getByText('Foley')).toBeInTheDocument()
+    // The new bin is loose: the parent keeps its three children
+    expect(screen.getByRole('button', { name: /02_Audio/ })).toHaveTextContent('3')
+  })
+
   it('does not show a numbering warning on the default structure', () => {
     render(<App />)
     expect(screen.queryByText(/Repeated numbering/)).not.toBeInTheDocument()
@@ -76,7 +91,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
     await user.click(screen.getByRole('button', { name: /07_Renders/ }))
-    await user.click(screen.getByRole('button', { name: 'Remove' }))
+    await user.keyboard('{Delete}')
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove' }))
     expect(screen.queryByText('07_Renders')).not.toBeInTheDocument()
 
@@ -85,6 +100,40 @@ describe('App', () => {
 
     await user.keyboard('{Control>}{Shift>}z{/Shift}{/Control}')
     expect(screen.queryByText('07_Renders')).not.toBeInTheDocument()
+  })
+
+  it('adds a loose bin with N', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: /02_Audio/ }))
+    await user.keyboard('n')
+    const dialog = screen.getByRole('dialog')
+    await user.type(within(dialog).getByRole('textbox'), 'Top')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(screen.getByText('Top')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /02_Audio/ })).toHaveTextContent('3')
+  })
+
+  it('renames a bin with a double-click on it', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.dblClick(screen.getByRole('button', { name: /04_Imagens/ }))
+    const dialog = screen.getByRole('dialog')
+    const input = within(dialog).getByRole('textbox')
+    await user.clear(input)
+    await user.type(input, '04_Pesquisa')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(screen.getByText('04_Pesquisa')).toBeInTheDocument()
+    expect(screen.queryByText('04_Imagens')).not.toBeInTheDocument()
+  })
+
+  it('starts from an empty graph with only the project bin', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Start' }))
+    expect(screen.getByText('Project_Name')).toBeInTheDocument()
+    expect(screen.queryByText('00_Footage')).not.toBeInTheDocument()
+    expect(screen.getByText('No bins yet. Add the first one below.')).toBeInTheDocument()
   })
 
   it('applies the Documentary model as a whole structure', async () => {

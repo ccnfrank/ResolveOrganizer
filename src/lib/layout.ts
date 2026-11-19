@@ -43,6 +43,8 @@ export type LayoutItem = {
   autoY: number
   width: number
   height: number
+  /** A loose bin: drawn without a connector, in the lane to the right of the tree. */
+  loose: boolean
 }
 
 export type LayoutEdge = {
@@ -59,6 +61,12 @@ export type Layout = {
 }
 
 export const ROOT_KEY = 'root'
+
+/** Width the project root needs: its icon, the name, and room for its "+". */
+const ROOT_CHROME = 82
+/** Rough width of one character of the root name, in the root's type size. */
+const ROOT_CHAR_WIDTH = 11
+const ROOT_MAX_WIDTH = 320
 
 export function pathKey(path: Path | null): string {
   return path ? path.join('.') : ROOT_KEY
@@ -86,6 +94,14 @@ export function layoutTree(rootName: string, nodes: BinNode[], opts: LayoutOptio
   const items: LayoutItem[] = []
   const parentOf = new Map<string, string>()
 
+  // The project root in graph mode grows to show its whole name, up to a limit. The bin columns
+  // move right by the extra width, so the root never covers a column.
+  const rootWidth =
+    mode === 'graph'
+      ? Math.min(ROOT_MAX_WIDTH, Math.max(nodeWidth, ROOT_CHROME + rootName.length * ROOT_CHAR_WIDTH))
+      : nodeWidth
+  const columnShift = rootWidth - nodeWidth
+
   const place = (
     key: string,
     id: string,
@@ -93,9 +109,15 @@ export function layoutTree(rootName: string, nodes: BinNode[], opts: LayoutOptio
     name: string,
     childCount: number,
     depth: number,
+    loose = false,
   ) => {
     const order = items.length
-    const autoX = depth * (mode === 'graph' ? nodeWidth + step : step)
+    const isRoot = depth === 0
+    const autoX = isRoot
+      ? 0
+      : mode === 'graph'
+        ? columnShift + depth * (nodeWidth + step)
+        : depth * step
     const autoY = order * stride
     const manual = mode === 'graph' ? positions[id] : undefined
     items.push({
@@ -110,8 +132,9 @@ export function layoutTree(rootName: string, nodes: BinNode[], opts: LayoutOptio
       y: manual?.y ?? autoY,
       autoX,
       autoY,
-      width: nodeWidth,
+      width: isRoot ? rootWidth : nodeWidth,
       height: nodeHeight,
+      loose,
     })
   }
 
@@ -122,18 +145,46 @@ export function layoutTree(rootName: string, nodes: BinNode[], opts: LayoutOptio
       const path = [...prefix, index]
       const key = pathKey(path)
       parentOf.set(key, parentKey)
-      place(key, node.id ?? key, path, node.name, node.children?.length ?? 0, path.length)
+      place(key, node.id ?? key, path, node.name, node.children?.length ?? 0, path.length, Boolean(node.loose))
       if (node.children?.length) visit(node.children, path, key)
     })
   }
   visit(nodes, [], ROOT_KEY)
+
+  // Graph mode: loose bins line up in a lane to the right of the tree, unless they were dragged.
+  if (mode === 'graph') {
+    const laneX = Math.max(rootWidth, ...items.filter((item) => !item.loose).map((item) => item.autoX + item.width)) + 2 * step
+    let lane = 0
+    for (const item of items) {
+      if (!item.loose) continue
+      item.autoX = laneX
+      item.autoY = lane * stride
+      if (!positions[item.id]) {
+        item.x = item.autoX
+        item.y = item.autoY
+      }
+      lane += 1
+    }
+  }
+
+  // Graph mode: the project root starts level with the middle of the connected bins, unless it was dragged.
+  const connected = items.slice(1).filter((item) => !item.loose)
+  if (mode === 'graph' && connected.length > 0) {
+    const top = Math.min(...connected.map((item) => item.autoY))
+    const bottom = Math.max(...connected.map((item) => item.autoY + item.height))
+    const centre = (top + bottom - nodeHeight) / 2
+    const root = items[0]
+    root.autoY = centre
+    if (!positions[ROOT_KEY]) root.y = centre
+  }
 
   const byKey = new Map(items.map((item) => [item.key, item]))
   const edges: LayoutEdge[] = []
   for (const item of items) {
     const parentKey = parentOf.get(item.key)
     const parent = parentKey ? byKey.get(parentKey) : undefined
-    if (!parent || !parentKey) continue
+    // A loose bin has no connector.
+    if (!parent || !parentKey || item.loose) continue
     edges.push({
       from: parentKey,
       to: item.key,
