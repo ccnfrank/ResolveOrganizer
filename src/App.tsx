@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { CircleHelp } from 'lucide-react'
 import { useBinTree } from './hooks/useBinTree'
 import { useLanguage } from './i18n/useLanguage'
 import { connectedNodes, countFolders, getNode, type BinNode, type Path } from './lib/binTree'
-import { createProjectTree, folderExists, pickDirectory, supportsDirectoryPicker } from './lib/fileSystem'
+import {
+  createProjectTree,
+  folderExists,
+  pickDirectory,
+  supportsDirectoryPicker,
+  type FolderTarget,
+} from './lib/fileSystem'
 import { pathKey } from './lib/layout'
 import { prefersReducedMotion, sleep } from './lib/motion'
 import {
@@ -19,6 +26,7 @@ import { sanitizeName } from './lib/sanitize'
 import { Alerts } from './components/Alerts'
 import { Brand } from './components/Brand'
 import { BinCanvas } from './components/BinCanvas'
+import { AboutDialog, HelpDialog, InfoButton } from './components/InfoDialogs'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { LanguageSwitch } from './components/LanguageSwitch'
 import { NameDialog } from './components/NameDialog'
@@ -28,7 +36,7 @@ import { ProjectForm } from './components/ProjectForm'
 import { Splash } from './components/Splash'
 import { StatusMessage, type Status } from './components/StatusMessage'
 
-type Dialog = 'sibling' | 'child' | 'rename' | 'remove' | 'savePreset' | 'exists' | null
+type Dialog = 'sibling' | 'child' | 'rename' | 'remove' | 'savePreset' | 'exists' | 'help' | 'about' | null
 
 type RenderState = {
   done: number
@@ -72,7 +80,7 @@ export default function App() {
   const tree = useBinTree()
 
   const [projectName, setProjectName] = useState('')
-  const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null)
+  const [dirHandle, setDirHandle] = useState<FolderTarget | null>(null)
   const [existingName, setExistingName] = useState<string | null>(null)
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>(() => loadCustomPresets())
   const [render, setRender] = useState<RenderState | null>(null)
@@ -142,7 +150,7 @@ export default function App() {
     }
   }
 
-  const runRender = async (name: string, handle: FileSystemDirectoryHandle) => {
+  const runRender = async (name: string, handle: FolderTarget) => {
     setRender({ done: 0, total: folderTotal + 1, rendered: new Set(), last: null })
     flash({ kind: 'info', text: (m) => m.creating })
     try {
@@ -391,7 +399,17 @@ export default function App() {
             <Brand className="size-12 shrink-0" />
             <h1 className="font-title text-5xl font-normal leading-none tracking-normal text-fg sm:text-6xl">{t.title}</h1>
           </div>
-          <LanguageSwitch lang={lang} t={t} onChange={setLang} />
+          <div className="flex items-center gap-2">
+            <LanguageSwitch lang={lang} t={t} onChange={setLang} />
+            <InfoButton label={t.openHelp} onClick={() => setDialog('help')}>
+              <CircleHelp size={18} aria-hidden="true" />
+            </InfoButton>
+            <InfoButton label={t.openAbout} onClick={() => setDialog('about')}>
+              <span aria-hidden="true" className="font-title text-xl leading-none">
+                i
+              </span>
+            </InfoButton>
+          </div>
         </motion.header>
 
         <div className="grid min-w-0 grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
@@ -488,6 +506,9 @@ export default function App() {
         onSubmit={handleDialogSubmit}
         onClose={() => setDialog(null)}
       />
+
+      <HelpDialog open={dialog === 'help'} lang={lang} t={t} onClose={() => setDialog(null)} />
+      <AboutDialog open={dialog === 'about'} t={t} onClose={() => setDialog(null)} />
 
       <ConfirmDialog
         open={dialog === 'remove'}

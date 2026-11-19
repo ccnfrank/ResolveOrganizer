@@ -131,6 +131,28 @@ describe('App', () => {
     expect(screen.getByText('VO')).toBeInTheDocument()
   })
 
+  it('opens the help guide with the shortcuts', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Help' }))
+    const dialog = screen.getByRole('dialog', { name: 'How to use Resolve Organizer' })
+    expect(within(dialog).getByText('Keyboard shortcuts')).toBeInTheDocument()
+    expect(within(dialog).getByText('Rename the selected bin')).toBeInTheDocument()
+  })
+
+  it('shows the version, developer and GitHub link in About', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'About' }))
+    const dialog = screen.getByRole('dialog', { name: 'About' })
+    expect(within(dialog).getByText('0.6')).toBeInTheDocument()
+    expect(within(dialog).getByText('Christian Frank')).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: 'github.com/ccnfrank' })).toHaveAttribute(
+      'href',
+      'https://github.com/ccnfrank',
+    )
+  })
+
   it('renames a bin with a double-click on it', async () => {
     const user = userEvent.setup()
     render(<App />)

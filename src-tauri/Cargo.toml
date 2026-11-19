@@ -1,0 +1,20 @@
+[package]
+name = "resolve-organizer"
+version = "2.0.0"
+description = "Resolve Organizer: builds DaVinci Resolve bin structures on disk"
+authors = ["Christian Frank"]
+license = ""
+repository = "https://github.com/ccnfrank/ResolveOrganizer"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "resolve_organizer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"

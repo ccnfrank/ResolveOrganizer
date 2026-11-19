@@ -53,4 +53,15 @@ npm test           # testes (Vitest + Testing Library)
 npm run build      # checagem de tipos e build de produção em dist/
 ```
 
-A criação das pastas usa a File System Access API, disponível no Chrome e no Edge.
+No navegador, a criação das pastas usa a File System Access API, disponível no Chrome e no Edge.
+
+## App para macOS (Tauri)
+
+O app de mesa usa o mesmo código e o seletor de pasta nativo do macOS, então não precisa de navegador. Pré-requisitos: Rust (rustup) e as Command Line Tools do Xcode.
+
+```bash
+npm run tauri dev      # abre o app em modo de desenvolvimento
+npm run tauri build    # gera o .app e o .dmg em src-tauri/target/release/bundle/
+```
+
+O código nativo fica em `src-tauri/` (comandos `folder_exists` e `create_folder` em `src-tauri/src/lib.rs`).

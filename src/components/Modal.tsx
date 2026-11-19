@@ -8,10 +8,12 @@ type ModalProps = {
   closeLabel: string
   onClose: () => void
   children: ReactNode
+  /** A wider panel for long content such as the help guide. */
+  wide?: boolean
 }
 
 /** Accessible dialog shell: closes on Escape and on backdrop click. */
-export function Modal({ open, title, closeLabel, onClose, children }: ModalProps) {
+export function Modal({ open, title, closeLabel, onClose, children, wide = false }: ModalProps) {
   const titleId = useId()
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export function Modal({ open, title, closeLabel, onClose, children }: ModalProps
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="w-full max-w-md rounded-2xl border border-edge bg-surface p-6 shadow-[0_28px_70px_-18px_rgb(0_0_0/0.75)]"
+            className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'} rounded-2xl border border-edge bg-surface p-6 shadow-[0_28px_70px_-18px_rgb(0_0_0/0.75)]`}
             initial={{ opacity: 0, y: 14, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
