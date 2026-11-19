@@ -39,3 +39,18 @@ Projektstrukturierung: Schnelle Erstellung standardisierter Ordner- (Bin-) Hiera
 Workflow-Standardisierung: Stellt sicher, dass alle Projekte derselben Organisationslogik folgen, was Zusammenarbeit und Dateiabgabe erleichtert.
 Direkte Oberfläche: Eine leichte Web-App, die darauf ausgelegt ist, die benötigte Struktur für den Import oder die Integration mit Software von Blackmagic Design zu generieren.
 Produktivitätssteigerung: Reduziert die anfängliche Einrichtungszeit eines Projekts, sodass der Editor sofort mit dem Schnitt beginnen kann.
+
+---
+
+## Desenvolvimento (v2 · React)
+
+Stack: Vite, React, TypeScript, Tailwind CSS v4, lucide-react e Motion. Interface em PT-BR, EN e DE.
+
+```bash
+npm install
+npm run dev        # servidor de desenvolvimento
+npm test           # testes (Vitest + Testing Library)
+npm run build      # checagem de tipos e build de produção em dist/
+```
+
+A criação das pastas usa a File System Access API, disponível no Chrome e no Edge.
