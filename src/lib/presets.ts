@@ -1,11 +1,9 @@
 import { DEFAULT_STRUCTURE, cloneTree, countFolders, type BinNode } from './binTree'
 import { sanitizeName } from './sanitize'
 
-export type PresetId = 'start' | 'default' | 'documentary' | 'commercial' | 'music-video'
+export type PresetId = 'default' | 'documentary' | 'commercial' | 'music-video'
 
 export const BUILTIN_PRESETS: { id: PresetId; nodes: BinNode[] }[] = [
-  // Empty: the graph holds only the project's own bin, and the user builds from there.
-  { id: 'start', nodes: [] },
   { id: 'default', nodes: DEFAULT_STRUCTURE },
   {
     id: 'documentary',

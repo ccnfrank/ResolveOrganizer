@@ -229,7 +229,6 @@ export default function App() {
   }
 
   const builtinLabel: Record<PresetId, string> = {
-    start: t.presetStart,
     default: t.presetDefault,
     documentary: t.presetDocumentary,
     commercial: t.presetCommercial,
@@ -303,6 +302,14 @@ export default function App() {
       if (!mod && !event.altKey && !event.shiftKey && key === 'n') {
         event.preventDefault()
         setDialog('sibling')
+        return
+      }
+      // L takes the selected sub-bin out of its parent, leaving it loose.
+      if (!mod && !event.altKey && !event.shiftKey && key === 'l' && tree.selected) {
+        event.preventDefault()
+        const name = tree.selectedNode?.name ?? ''
+        if (tree.detach()) flash({ kind: 'success', text: (m) => m.detached(name) })
+        else flash({ kind: 'info', text: (m) => m.detachNotSub })
         return
       }
 
@@ -382,7 +389,7 @@ export default function App() {
         >
           <div className="flex items-center gap-4">
             <Brand className="size-12 shrink-0" />
-            <h1 className="text-4xl leading-none text-fg sm:text-5xl">{t.title}</h1>
+            <h1 className="font-title text-5xl font-normal leading-none tracking-normal text-fg sm:text-6xl">{t.title}</h1>
           </div>
           <LanguageSwitch lang={lang} t={t} onChange={setLang} />
         </motion.header>

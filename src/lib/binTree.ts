@@ -59,6 +59,23 @@ export function addLoose(nodes: BinNode[], name: string): { nodes: BinNode[]; pa
   return { nodes: next, path: [next.length - 1] }
 }
 
+/**
+ * Takes a sub-bin out of its parent and leaves it loose at the top level.
+ * Its own sub-bins go with it. Returns null for top-level bins, which have no parent to leave.
+ */
+export function detachNode(nodes: BinNode[], path: Path): { nodes: BinNode[]; path: Path } | null {
+  if (path.length < 2) return null
+  const next = cloneTree(nodes)
+  const moving = getNode(next, path)
+  const parent = getNode(next, path.slice(0, -1))
+  if (!moving || !parent?.children) return null
+  parent.children.splice(path[path.length - 1], 1)
+  if (parent.children.length === 0) delete parent.children
+  moving.loose = true
+  next.push(moving)
+  return { nodes: next, path: [next.length - 1] }
+}
+
 export function getNode(nodes: BinNode[], path: Path): BinNode | null {
   let current: BinNode[] = nodes
   let node: BinNode | null = null

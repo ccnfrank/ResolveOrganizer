@@ -6,6 +6,7 @@ import {
   connectedNodes,
   cloneTree,
   countFolders,
+  detachNode,
   findPath,
   getNode,
   insertChild,
@@ -178,3 +179,39 @@ describe('loose bins', () => {
     expect(cloneTree(nodes)[0].loose).toBe(true)
   })
 })
+
+describe('detachNode', () => {
+  const tree = (): BinNode[] => [
+    { id: 'audio', name: '02_Audio', children: [{ id: 'vo', name: 'VO', children: [{ id: 'take', name: 'Take 1' }] }, { id: 'sfx', name: 'SFX' }] },
+    { id: 'assets', name: '03_Assets' },
+  ]
+
+  it('takes a sub-bin out of its parent and leaves it loose at the top level', () => {
+    const result = detachNode(tree(), [0, 0])!
+    expect(result.nodes[0].children!.map((node) => node.name)).toEqual(['SFX'])
+    expect(result.nodes.at(-1)).toMatchObject({ id: 'vo', name: 'VO', loose: true })
+    expect(result.path).toEqual([2])
+  })
+
+  it('keeps the sub-bins of the detached bin with it', () => {
+    const result = detachNode(tree(), [0, 0])!
+    expect(result.nodes.at(-1)!.children!.map((node) => node.name)).toEqual(['Take 1'])
+  })
+
+  it('removes an empty children list from the old parent', () => {
+    const nodes: BinNode[] = [{ name: 'Parent', children: [{ name: 'Only' }] }]
+    const result = detachNode(nodes, [0, 0])!
+    expect(result.nodes[0].children).toBeUndefined()
+  })
+
+  it('does nothing for a top-level bin, which has no parent', () => {
+    expect(detachNode(tree(), [1])).toBeNull()
+  })
+
+  it('does not change the tree it was given', () => {
+    const original = tree()
+    detachNode(original, [0, 0])
+    expect(original[0].children!.map((node) => node.name)).toEqual(['VO', 'SFX'])
+  })
+})
+

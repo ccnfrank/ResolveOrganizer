@@ -21,7 +21,9 @@ export function NameDialog({ open, title, initialValue, t, onSubmit, onClose }: 
     if (open) {
       setValue(initialValue)
       setError(null)
-      requestAnimationFrame(() => inputRef.current?.select())
+      // Focus at once so typing lands in the field; a deferred select could swallow the first keys.
+      inputRef.current?.focus()
+      inputRef.current?.select()
     }
   }, [open, initialValue])
 

@@ -39,7 +39,7 @@ export function Splash({ title, caption }: { title: string; caption: string }) {
 
         <div className="grid gap-2">
           <motion.p
-            className="whitespace-nowrap text-4xl font-semibold tracking-tight text-fg"
+            className="font-title whitespace-nowrap text-5xl leading-none tracking-normal text-fg"
             initial={{ clipPath: 'inset(0 100% 0 0)' }}
             animate={{ clipPath: 'inset(0 0% 0 0)' }}
             transition={{ duration: 0.8, delay: 0.6, ease: EASE }}

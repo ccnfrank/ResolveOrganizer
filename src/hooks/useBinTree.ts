@@ -5,6 +5,7 @@ import {
   collectIds,
   canReparent,
   addLoose,
+  detachNode,
   getNode,
   isValidPath,
   moveNode,
@@ -100,6 +101,16 @@ export function useBinTree(initial: BinNode[] = DEFAULT_STRUCTURE) {
     setSelected(result.path)
   }
 
+  /** Takes the selected sub-bin out of its parent so it is loose again. Returns false for top-level bins. */
+  const detach = (): boolean => {
+    if (!selected) return false
+    const result = detachNode(nodes, selected)
+    if (!result) return false
+    commit({ nodes: result.nodes, positions })
+    setSelected(result.path)
+    return true
+  }
+
   /** Moves one bin on the graph. Manual positions are part of the history. */
   const setPosition = (id: string, point: Point) => {
     commit({ nodes, positions: { ...positions, [id]: point } })
@@ -166,6 +177,7 @@ export function useBinTree(initial: BinNode[] = DEFAULT_STRUCTURE) {
     remove,
     move,
     reparent,
+    detach,
     setPosition,
     setPositions,
     resetPositions,

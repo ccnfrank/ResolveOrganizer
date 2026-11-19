@@ -7,13 +7,9 @@ function isLang(value: string | null): value is Lang {
   return value !== null && (LANGS as string[]).includes(value)
 }
 
-/** Stored choice wins if valid; otherwise map the browser language; otherwise English. */
-export function detectLang(navigatorLang: string, stored: string | null): Lang {
-  if (isLang(stored)) return stored
-  const base = navigatorLang.toLowerCase()
-  if (base.startsWith('pt')) return 'pt-BR'
-  if (base.startsWith('de')) return 'de'
-  return 'en'
+/** The language the user picked and kept, if valid; otherwise English, whatever the browser says. */
+export function detectLang(stored: string | null): Lang {
+  return isLang(stored) ? stored : 'en'
 }
 
 function readStored(): string | null {
@@ -33,9 +29,7 @@ function writeStored(lang: Lang): void {
 }
 
 export function useLanguage(): { lang: Lang; setLang: (lang: Lang) => void; t: Messages } {
-  const [lang, setLangState] = useState<Lang>(() =>
-    detectLang(typeof navigator !== 'undefined' ? navigator.language : 'en', readStored()),
-  )
+  const [lang, setLangState] = useState<Lang>(() => detectLang(readStored()))
 
   useEffect(() => {
     document.documentElement.lang = lang

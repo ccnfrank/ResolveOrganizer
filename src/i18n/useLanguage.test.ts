@@ -3,24 +3,17 @@ import { detectLang } from './useLanguage'
 import { LANGS, messages, type Messages } from './messages'
 
 describe('detectLang', () => {
-  it('maps German browsers to de', () => {
-    expect(detectLang('de-DE', null)).toBe('de')
+  it('defaults to English when nothing was chosen', () => {
+    expect(detectLang(null)).toBe('en')
   })
 
-  it('maps Portuguese browsers to pt-BR', () => {
-    expect(detectLang('pt-PT', null)).toBe('pt-BR')
+  it('keeps a valid stored choice', () => {
+    expect(detectLang('pt-BR')).toBe('pt-BR')
+    expect(detectLang('de')).toBe('de')
   })
 
-  it('falls back to en for unsupported languages', () => {
-    expect(detectLang('fr', null)).toBe('en')
-  })
-
-  it('prefers a valid stored choice over the browser language', () => {
-    expect(detectLang('en', 'pt-BR')).toBe('pt-BR')
-  })
-
-  it('ignores an invalid stored value', () => {
-    expect(detectLang('de', 'xx')).toBe('de')
+  it('falls back to English for an invalid stored value', () => {
+    expect(detectLang('xx')).toBe('en')
   })
 })
 

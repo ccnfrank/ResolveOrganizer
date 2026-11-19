@@ -35,6 +35,13 @@ describe('App', () => {
     expect(screen.getByText('Teste')).toBeInTheDocument()
   })
 
+  it('focuses the name field as soon as the new bin dialog opens', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.keyboard('n')
+    expect(within(screen.getByRole('dialog')).getByRole('textbox')).toHaveFocus()
+  })
+
   it('shows an error and keeps the dialog open when the name is empty', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -114,6 +121,16 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /02_Audio/ })).toHaveTextContent('3')
   })
 
+  it('detaches the selected sub-bin with L so it is loose again', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: /^VO/ }))
+    expect(screen.getByRole('button', { name: /02_Audio/ })).toHaveTextContent('3')
+    await user.keyboard('l')
+    expect(screen.getByRole('button', { name: /02_Audio/ })).toHaveTextContent('2')
+    expect(screen.getByText('VO')).toBeInTheDocument()
+  })
+
   it('renames a bin with a double-click on it', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -125,15 +142,6 @@ describe('App', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save' }))
     expect(screen.getByText('04_Pesquisa')).toBeInTheDocument()
     expect(screen.queryByText('04_Imagens')).not.toBeInTheDocument()
-  })
-
-  it('starts from an empty graph with only the project bin', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Start' }))
-    expect(screen.getByText('Project_Name')).toBeInTheDocument()
-    expect(screen.queryByText('00_Footage')).not.toBeInTheDocument()
-    expect(screen.getByText('No bins yet. Add the first one below.')).toBeInTheDocument()
   })
 
   it('applies the Documentary model as a whole structure', async () => {
