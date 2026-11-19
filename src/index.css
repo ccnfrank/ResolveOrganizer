@@ -1,0 +1,61 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0c0e11;
+  --color-panel: #14181e;
+  --color-line: #1f252d;
+  --color-text: #e7eaee;
+  --color-muted: #8b93a1;
+  --color-accent: #ffb23f;
+  --color-accent-2: #7dd3fc;
+  --color-danger: #fb7185;
+  --color-success: #6ee7b7;
+  --color-ink: #111318;
+
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    @apply min-h-full bg-bg font-mono text-text antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: rgb(255 178 63 / 0.28);
+    color: var(--color-text);
+  }
+}
+
+/* Scrollbars themed to the panel instead of the browser default. */
+@utility thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #2a313b transparent;
+}
+
+/* Faint graph-paper field behind the panels, like a node editor canvas. */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.028) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
