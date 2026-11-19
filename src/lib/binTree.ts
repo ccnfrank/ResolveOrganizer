@@ -1,4 +1,6 @@
 export type BinNode = {
+  /** Stable identity: survives renames and moves, so a dragged position follows its bin. */
+  id?: string
   name: string
   children?: BinNode[]
 }
@@ -18,8 +20,17 @@ export const DEFAULT_STRUCTURE: BinNode[] = [
   { name: '07_Renders' },
 ]
 
+let idCounter = 0
+
+export function createId(): string {
+  idCounter += 1
+  return `bin-${Date.now().toString(36)}-${idCounter.toString(36)}`
+}
+
+/** Deep copy with fresh arrays; nodes without an id receive one. */
 export function cloneTree(nodes: BinNode[]): BinNode[] {
   return nodes.map((node) => ({
+    id: node.id ?? createId(),
     name: node.name,
     ...(node.children ? { children: cloneTree(node.children) } : {}),
   }))
@@ -43,14 +54,14 @@ export function insertSibling(
 ): { nodes: BinNode[]; path: Path } {
   const next = cloneTree(nodes)
   if (path.length === 0) {
-    next.push({ name })
+    next.push({ id: createId(), name })
     return { nodes: next, path: [next.length - 1] }
   }
   const parentPath = path.slice(0, -1)
   const list = parentPath.length === 0 ? next : getNode(next, parentPath)?.children
   if (!list) return { nodes: next, path }
   const index = path[path.length - 1]
-  list.splice(index + 1, 0, { name })
+  list.splice(index + 1, 0, { id: createId(), name })
   return { nodes: next, path: [...parentPath, index + 1] }
 }
 
@@ -61,13 +72,13 @@ export function insertChild(
 ): { nodes: BinNode[]; path: Path } {
   const next = cloneTree(nodes)
   if (path.length === 0) {
-    next.push({ name })
+    next.push({ id: createId(), name })
     return { nodes: next, path: [next.length - 1] }
   }
   const target = getNode(next, path)
   if (!target) return { nodes: next, path }
   target.children = target.children ?? []
-  target.children.push({ name })
+  target.children.push({ id: createId(), name })
   return { nodes: next, path: [...path, target.children.length - 1] }
 }
 
@@ -107,4 +118,18 @@ export function moveNode(
 
 export function countFolders(nodes: BinNode[]): number {
   return nodes.reduce((total, node) => total + 1 + countFolders(node.children ?? []), 0)
+}
+
+/** Every id in the tree, used to drop positions of bins that no longer exist. */
+export function collectIds(nodes: BinNode[], into = new Set<string>()): Set<string> {
+  for (const node of nodes) {
+    if (node.id) into.add(node.id)
+    collectIds(node.children ?? [], into)
+  }
+  return into
+}
+
+/** Returns true when `path` still points at a node in `nodes`. */
+export function isValidPath(nodes: BinNode[], path: Path | null): boolean {
+  return !!path && getNode(nodes, path) !== null
 }

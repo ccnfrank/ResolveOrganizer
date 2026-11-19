@@ -1,40 +1,37 @@
-import { Languages } from 'lucide-react'
-import { LANGS, type Lang, type Messages } from '../i18n/messages'
+import { motion } from 'motion/react'
+import type { Lang, Messages } from '../i18n/messages'
 
-const LABELS: Record<Lang, { short: string; name: string }> = {
-  'pt-BR': { short: 'PT', name: 'Português' },
-  en: { short: 'EN', name: 'English' },
-  de: { short: 'DE', name: 'Deutsch' },
-}
+const OPTIONS: { value: Lang; short: string; name: string }[] = [
+  { value: 'pt-BR', short: 'PT', name: 'Português' },
+  { value: 'en', short: 'EN', name: 'English' },
+  { value: 'de', short: 'DE', name: 'Deutsch' },
+]
 
-type LanguageSwitchProps = {
-  lang: Lang
-  t: Messages
-  onChange: (lang: Lang) => void
-}
-
-export function LanguageSwitch({ lang, t, onChange }: LanguageSwitchProps) {
+/** Segmented switch; the amber pill slides between languages. */
+export function LanguageSwitch({ lang, t, onChange }: { lang: Lang; t: Messages; onChange: (lang: Lang) => void }) {
   return (
-    <div
-      role="group"
-      aria-label={t.language}
-      className="inline-flex items-center gap-1 rounded-md border border-line bg-panel p-1"
-    >
-      <Languages size={15} className="mx-1.5 text-muted" aria-hidden="true" />
-      {LANGS.map((code) => {
-        const active = code === lang
+    <div role="group" aria-label={t.language} className="inline-flex rounded-full border border-edge bg-surface p-1 font-mono text-xs">
+      {OPTIONS.map((option) => {
+        const active = option.value === lang
         return (
           <button
-            key={code}
+            key={option.value}
             type="button"
+            aria-label={option.name}
             aria-pressed={active}
-            aria-label={LABELS[code].name}
-            onClick={() => onChange(code)}
-            className={`rounded-lg px-2.5 py-1 font-mono text-xs font-semibold tracking-wide transition ${
-              active ? 'bg-accent text-ink shadow-sm' : 'text-muted hover:text-text'
+            onClick={() => onChange(option.value)}
+            className={`relative rounded-full px-3.5 py-1.5 transition-colors duration-200 ${
+              active ? 'text-ink' : 'text-dim hover:text-fg'
             }`}
           >
-            {LABELS[code].short}
+            {active && (
+              <motion.span
+                layoutId="language-pill"
+                className="absolute inset-0 rounded-full bg-accent"
+                transition={{ type: 'spring', stiffness: 520, damping: 40 }}
+              />
+            )}
+            <span className="relative">{option.short}</span>
           </button>
         )
       })}

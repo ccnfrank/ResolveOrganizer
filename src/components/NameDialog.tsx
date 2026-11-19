@@ -37,7 +37,7 @@ export function NameDialog({ open, title, initialValue, t, onSubmit, onClose }: 
 
   return (
     <Modal open={open} title={title} closeLabel={t.close} onClose={onClose}>
-      <form onSubmit={submit} className="grid gap-4">
+      <form onSubmit={submit} className="grid gap-5">
         <input
           ref={inputRef}
           value={value}
@@ -47,20 +47,20 @@ export function NameDialog({ open, title, initialValue, t, onSubmit, onClose }: 
           }}
           aria-label={title}
           aria-invalid={error ? true : undefined}
-          className="w-full rounded-md border border-line bg-bg px-4 py-3 font-mono text-text outline-none transition focus:border-accent focus:ring-4 focus:ring-accent/20"
+          className="h-12 w-full rounded-xl border border-edge bg-ground px-4 font-mono text-fg outline-none transition focus:border-accent focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--color-accent)_18%,transparent)]"
         />
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-4 py-2.5 text-sm text-muted transition hover:bg-white/5 hover:text-text"
+            className="rounded-xl px-4 py-2.5 text-sm text-dim transition hover:bg-raised hover:text-fg"
           >
             {t.cancel}
           </button>
           <button
             type="submit"
-            className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-ink transition hover:brightness-110"
+            className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-ink transition hover:brightness-105 active:scale-[0.98]"
           >
             {t.save}
           </button>

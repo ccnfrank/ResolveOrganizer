@@ -1,0 +1,12 @@
+/** Mark: three bin rows in the grade's colours and the playhead that runs through them. */
+export function Brand({ className = 'size-11' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true" focusable="false">
+      <rect x="1" y="1" width="46" height="46" rx="13" fill="#111419" stroke="#262c34" />
+      <rect x="10" y="13" width="22" height="6" rx="2" fill="#d6dde3" />
+      <rect x="10" y="22" width="28" height="6" rx="2" fill="#e9edf0" opacity=".8" />
+      <rect x="10" y="31" width="16" height="6" rx="2" fill="#7fa6c6" />
+      <rect x="36" y="9" width="2" height="30" rx="1" fill="#e07a7a" />
+    </svg>
+  )
+}

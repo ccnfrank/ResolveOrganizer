@@ -27,7 +27,7 @@ export function Modal({ open, title, closeLabel, onClose, children }: ModalProps
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -39,23 +39,23 @@ export function Modal({ open, title, closeLabel, onClose, children }: ModalProps
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="w-full max-w-md rounded-lg border border-white/10 bg-panel p-6 shadow-2xl"
-            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+            className="w-full max-w-md rounded-2xl border border-edge bg-surface p-6 shadow-[0_28px_70px_-18px_rgb(0_0_0/0.75)]"
+            initial={{ opacity: 0, y: 14, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 380, damping: 30 }}
           >
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <h2 id={titleId} className="font-display text-lg font-semibold text-text">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <h2 id={titleId} className="text-xl text-fg">
                 {title}
               </h2>
               <button
                 type="button"
                 onClick={onClose}
                 aria-label={closeLabel}
-                className="rounded-lg p-1 text-muted transition hover:bg-white/[0.06] hover:text-text"
+                className="rounded-lg p-1.5 text-dim transition duration-200 hover:bg-raised hover:text-fg"
               >
-                <X size={18} />
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
             {children}
